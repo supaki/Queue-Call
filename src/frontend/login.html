@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Queue System Login</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Include styles.html if needed, but for login, Tailwind directly is fine -->
+</head>
+<body class="bg-gray-100 flex items-center justify-center h-screen">
+    <div class="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
+        <h1 class="text-2xl font-bold text-center mb-6">Queue System Login</h1>
+
+        <div class="mb-4">
+            <label for="username" class="block text-sm font-medium text-gray-700">Username</label>
+            <input type="text" id="username" name="username" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+        </div>
+
+        <div class="mb-4">
+            <label for="password" class="block text-sm font-medium text-gray-700">Password</label>
+            <input type="password" id="password" name="password" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+        </div>
+
+        <div class="mb-4 flex items-center">
+            <input type="checkbox" id="showPassword" class="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500">
+            <label for="showPassword" class="ml-2 block text-sm text-gray-900">Show Password</label>
+        </div>
+
+        <button id="loginButton" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline">
+            Login
+        </button>
+
+        <div class="text-center mt-4">
+            <a href="#" id="forgotPasswordLink" class="text-sm text-indigo-600 hover:text-indigo-800">Forgot Password?</a>
+        </div>
+
+        <div id="messageArea" class="mt-4 text-sm text-center">
+            <!-- Messages will appear here -->
+        </div>
+    </div>
+
+    <script>
+        const usernameInput = document.getElementById('username');
+        const passwordInput = document.getElementById('password');
+        const showPasswordCheckbox = document.getElementById('showPassword');
+        const loginButton = document.getElementById('loginButton');
+        const forgotPasswordLink = document.getElementById('forgotPasswordLink');
+        const messageArea = document.getElementById('messageArea');
+
+        function displayMessage(message, isError = false) {
+            messageArea.textContent = message;
+            messageArea.className = isError ? 'mt-4 text-sm text-center text-red-500' : 'mt-4 text-sm text-center text-green-500';
+            if (!isError && message.includes("Redirecting")) {
+                 messageArea.className = 'mt-4 text-sm text-center text-blue-500';
+            }
+        }
+
+        function handleLogin() {
+            const username = usernameInput.value.trim();
+            const password = passwordInput.value.trim();
+
+            if (!username || !password) {
+                displayMessage("Username and password cannot be empty.", true);
+                return;
+            }
+            displayMessage("Logging in...", false);
+            google.script.run
+                .withSuccessHandler(processLoginResponse)
+                .withFailureHandler(onFailure)
+                .login(username, password);
+        }
+
+        function processLoginResponse(response) {
+            if (response.success) {
+                displayMessage("Login successful! Redirecting to dashboard...", false);
+                google.script.run.storeCurrentPage('dashboard');
+                // In a real GAS web app, redirection is handled by returning new HTML content
+                // or using `google.script.history.push` or `google.script.host.origin`.
+                // For now, we'll simulate the intent.
+                // We'd typically get the main app URL and append ?page=dashboard
+                google.script.run.withSuccessHandler(function(url) {
+                     // This simulates navigation. Actual navigation would be more complex.
+                     // window.location.href = url + (url.includes('?') ? '&' : '?') + 'page=dashboard';
+                     // For now, we'll just show an alert that we WOULD redirect.
+                     // alert("Login successful. Redirecting to dashboard. App URL: " + url);
+                     // Or, more simply, tell the user the next step.
+                     displayMessage("Login successful! Please wait while we prepare your dashboard.", false);
+                     // Attempt to load the dashboard page if it's served by the same script
+                     // This requires doGet(e) to handle page routing
+                     google.script.run.withSuccessHandler(function(newUrl){
+                        window.top.location.href = newUrl; // Try to redirect the top window
+                     }).withFailureHandler(onFailure).getServedUrl("dashboard");
+
+                }).withFailureHandler(onFailure).getScriptUrl();
+
+            } else {
+                displayMessage(response.message || "Login failed.", true);
+            }
+        }
+
+        function handleForgotPassword() {
+            const email = prompt("Please enter your email address:");
+            if (email && email.trim() !== "") {
+                displayMessage("Processing request...", false);
+                google.script.run
+                    .withSuccessHandler(processForgotPasswordResponse)
+                    .withFailureHandler(onFailure)
+                    .forgotPassword(email.trim());
+            } else if (email !== null) { // user didn't cancel prompt but entered empty
+                displayMessage("Email address cannot be empty.", true);
+            }
+        }
+
+        function processForgotPasswordResponse(response) {
+            if (response.success) {
+                let msg = response.message;
+                if (response.newPassword) { // As per current backend design
+                    msg += " Your temporary password is: " + response.newPassword;
+                }
+                displayMessage(msg, false);
+            } else {
+                displayMessage(response.message || "Password recovery failed.", true);
+            }
+        }
+
+        function togglePasswordVisibility() {
+            passwordInput.type = showPasswordCheckbox.checked ? 'text' : 'password';
+        }
+
+        function checkSessionOnLoad() {
+            displayMessage("Checking session...", false);
+            google.script.run
+                .withSuccessHandler(processSessionCheck)
+                .withFailureHandler(onFailure)
+                .checkUserSession();
+        }
+
+        function processSessionCheck(response) {
+            if (response.isLoggedIn) {
+                displayMessage("Already logged in. Redirecting to " + (response.currentPage || "dashboard") + "...", false);
+                // Similar to login, redirecting is complex.
+                // We'll assume the main script handles routing.
+                google.script.run.withSuccessHandler(function(url){
+                     // window.location.href = url + (url.includes('?') ? '&' : '?') + 'page=' + (response.currentPage || 'dashboard');
+                     // alert("Already logged in. Redirecting to " + (response.currentPage || "dashboard") + ". App URL: " + url);
+                     displayMessage("Welcome back, " + response.user.username + "! Redirecting...", false);
+                     google.script.run.withSuccessHandler(function(newUrl){
+                        window.top.location.href = newUrl;
+                     }).withFailureHandler(onFailure).getServedUrl(response.currentPage || "dashboard");
+
+                }).withFailureHandler(onFailure).getScriptUrl();
+            } else {
+                displayMessage("Please log in.", false); // Clear "Checking session..."
+            }
+        }
+        
+        // This function will be used by getServedUrl to actually get the URL
+        // This is a placeholder and might need to be in main.gs or similar
+        // if we want a generic URL builder for pages.
+        // For now, let's assume getScriptUrl() gives the base and we append page name.
+        // However, a better way is to have a function in GAS that returns the full URL for a given page identifier.
+        // Let's define a dummy getServedUrl in GAS later. For now, the client side will call it.
+        // We will add a function `getServedUrl(pageName)` in `main.gs` later.
+
+        function onFailure(error) {
+            messageArea.textContent = 'An error occurred: ' + error.message;
+            messageArea.className = 'mt-4 text-sm text-center text-red-500';
+            console.error('GAS call failed:', error);
+        }
+
+        // Event Listeners
+        loginButton.addEventListener('click', handleLogin);
+        forgotPasswordLink.addEventListener('click', handleForgotPassword);
+        showPasswordCheckbox.addEventListener('change', togglePasswordVisibility);
+        window.addEventListener('load', checkSessionOnLoad);
+
+    </script>
+</body>
+</html>

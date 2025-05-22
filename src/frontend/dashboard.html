@@ -1,0 +1,149 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Dashboard - Queue System</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Include styles.html if needed -->
+</head>
+<body class="bg-gray-100">
+    <div class="container mx-auto p-4">
+        <!-- Header Section -->
+        <header class="bg-white shadow rounded-lg p-6 mb-6 flex justify-between items-center">
+            <div id="welcomeMessage" class="text-xl font-semibold text-gray-700">
+                Welcome!
+            </div>
+            <button id="logoutButton" class="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline">
+                Logout
+            </button>
+        </header>
+
+        <!-- Navigation Section -->
+        <nav class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+            <button id="bookQueueButton" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-4 px-6 rounded-lg shadow-md text-lg h-32">
+                Book a Queue Ticket
+            </button>
+            <button id="manageQueuesButton" class="bg-purple-500 hover:bg-purple-700 text-white font-bold py-4 px-6 rounded-lg shadow-md text-lg h-32 admin-only">
+                Manage Queues (Admin)
+            </button>
+            <button id="viewDisplayButton" class="bg-green-500 hover:bg-green-700 text-white font-bold py-4 px-6 rounded-lg shadow-md text-lg h-32">
+                View Queue Display
+            </button>
+            <button id="settingsButton" class="bg-gray-500 hover:bg-gray-700 text-white font-bold py-4 px-6 rounded-lg shadow-md text-lg h-32 admin-only">
+                Settings (Admin)
+            </button>
+        </nav>
+
+        <!-- Message Area -->
+        <div id="dashboardMessageArea" class="mt-4 text-sm text-center p-3 rounded-md">
+            <!-- Messages will appear here -->
+        </div>
+    </div>
+
+    <script>
+        const welcomeMessage = document.getElementById('welcomeMessage');
+        const logoutButton = document.getElementById('logoutButton');
+        const bookQueueButton = document.getElementById('bookQueueButton');
+        const manageQueuesButton = document.getElementById('manageQueuesButton');
+        const viewDisplayButton = document.getElementById('viewDisplayButton');
+        const settingsButton = document.getElementById('settingsButton');
+        const dashboardMessageArea = document.getElementById('dashboardMessageArea');
+
+        function displayDashboardMessage(message, isError = false) {
+            dashboardMessageArea.textContent = message;
+            if (isError) {
+                dashboardMessageArea.className = 'mt-4 text-sm text-center p-3 rounded-md bg-red-100 text-red-700';
+            } else {
+                dashboardMessageArea.className = 'mt-4 text-sm text-center p-3 rounded-md bg-blue-100 text-blue-700';
+            }
+        }
+
+        function loadDashboard() {
+            displayDashboardMessage("Loading dashboard data...");
+            google.script.run
+                .withSuccessHandler(processSessionDetails)
+                .withFailureHandler(redirectToLogin) // Pass the error to redirectToLogin
+                .checkUserSession();
+        }
+
+        function processSessionDetails(session) {
+            if (session && session.isLoggedIn) {
+                welcomeMessage.textContent = "Welcome, " + (session.user.username || session.user.email || "User") + "!";
+                displayDashboardMessage("Dashboard loaded successfully.", false);
+
+                // Future: Role-based visibility for admin buttons
+                // Example: if (session.user.role !== 'admin') {
+                //   manageQueuesButton.style.display = 'none';
+                //   settingsButton.style.display = 'none';
+                // }
+            } else {
+                // This case should ideally be handled by redirectToLogin if checkUserSession fails
+                redirectToLogin({ message: "Session invalid or not logged in." });
+            }
+        }
+
+        function redirectToLogin(error) {
+            if (error) {
+                console.error("Session check failed or not logged in:", error);
+                // Display a message to the user before redirecting
+                displayDashboardMessage("Session invalid or expired. Redirecting to login...", true);
+            }
+            google.script.run
+                .withSuccessHandler(function(url) {
+                    window.top.location.href = url;
+                })
+                .withFailureHandler(onFailure) // Handle failure to get login URL
+                .getServedUrl('login');
+        }
+
+        function handleLogout() {
+            displayDashboardMessage("Logging out...", false);
+            google.script.run
+                .withSuccessHandler(processLogoutResponse)
+                .withFailureHandler(onFailure)
+                .logout();
+        }
+
+        function processLogoutResponse(response) {
+            if (response && response.success) {
+                displayDashboardMessage("Logged out successfully. Redirecting to login...", false);
+                redirectToLogin(); // No error object needed here
+            } else {
+                displayDashboardMessage(response.message || "Logout failed. Please try again.", true);
+            }
+        }
+
+        function navigateTo(pageName) {
+            displayDashboardMessage(`Navigating to ${pageName.replace('_', ' ')}...`, false);
+            google.script.run.storeCurrentPage(pageName);
+            google.script.run
+                .withSuccessHandler(function(url) {
+                    // For 'display_screen', consider opening in a new tab
+                    if (pageName === 'display_screen') {
+                        window.open(url, '_blank');
+                        displayDashboardMessage("Display screen should open in a new tab.", false);
+                    } else {
+                        window.top.location.href = url;
+                    }
+                })
+                .withFailureHandler(onFailure)
+                .getServedUrl(pageName);
+        }
+
+        function onFailure(error) {
+            console.error('GAS Call Error:', error);
+            displayDashboardMessage('An error occurred: ' + error.message, true);
+        }
+
+        // Event Listeners
+        window.addEventListener('load', loadDashboard);
+        logoutButton.addEventListener('click', handleLogout);
+
+        bookQueueButton.addEventListener('click', function() { navigateTo('queue_booking'); });
+        manageQueuesButton.addEventListener('click', function() { navigateTo('admin_panel'); }); // admin_panel for actual admin functions
+        viewDisplayButton.addEventListener('click', function() { navigateTo('display_screen'); });
+        settingsButton.addEventListener('click', function() { navigateTo('settings'); });
+
+    </script>
+</body>
+</html>
