@@ -1,4 +1,27 @@
-<!-- Common JavaScript functions -->
+<!-- 
+  Common JavaScript functions and utilities that might be shared across multiple HTML pages.
+  This file can be included in HTML templates using: <?!= include('frontend/scripts.html'); ?>
+-->
 <script>
-    // Define common JavaScript functions here
+    /**
+     * Example of a shared utility function.
+     * This is a placeholder and can be replaced or extended with actual shared functions.
+     * For instance, functions for:
+     * - Global notifications
+     * - Common data formatting
+     * - Helper functions for interacting with Google Apps Script backend (if not page-specific)
+     */
+    function logSharedMessage(message) {
+        console.log("Shared Scripts Message: ", message);
+    }
+
+    // Add other common JavaScript functions here as the project evolves.
+    // For example, functions to handle global UI elements, common API calls, etc.
+
+    // Consider namespacing common functions if the script grows large to avoid conflicts:
+    // var AppUtils = {
+    //   showMessage: function(msg) { console.log(msg); },
+    //   formatDate: function(date) { return new Date(date).toLocaleDateString(); }
+    // };
+    // Then call using AppUtils.showMessage("Hello");
 </script>

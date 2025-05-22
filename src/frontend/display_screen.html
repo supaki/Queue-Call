@@ -50,87 +50,168 @@
 </head>
 <body class="flex flex-col md:flex-row h-screen">
 
-    <!-- Main Content Area (Queues) -->
+    <!-- Main Content Area (Queues Display) -->
     <div class="w-full md:w-3/5 p-4 md:p-8 flex flex-col">
         <h1 class="text-5xl font-bold text-center mb-6 text-blue-300">NOW SERVING</h1>
+        <!-- Area for Currently Calling Queues -->
         <div id="callingArea" class="flex-grow space-y-2 overflow-y-auto">
-            <!-- Calling items will be populated here -->
+            <!-- Calling queue items will be populated by JavaScript -->
             <p class="text-center text-gray-400 text-2xl">Waiting for next call...</p>
         </div>
+        <!-- End Currently Calling Area -->
 
+        <!-- Area for Waiting Queues List -->
         <div class="mt-auto pt-4">
              <h2 class="text-3xl font-semibold text-center mb-3 text-blue-200">WAITING</h2>
             <div id="waitingListArea" class="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2">
-                <!-- Waiting list items will be populated here -->
+                <!-- Waiting list items will be populated by JavaScript -->
                 <p class="text-center text-gray-500 text-xl col-span-full">Waiting list is empty.</p>
             </div>
         </div>
+        <!-- End Waiting List Area -->
     </div>
+    <!-- End Main Content Area -->
 
-    <!-- Multimedia Area -->
+    <!-- Multimedia Area (e.g., YouTube Player) -->
     <div id="multimediaArea" class="w-full md:w-2/5 h-1/3 md:h-full bg-black flex items-center justify-center">
         <div id="youtubePlayer" class="w-full h-full">
-            <!-- YouTube player will be embedded here -->
+            <!-- YouTube player iframe will be embedded here by JavaScript -->
             <div class="w-full h-full bg-black flex items-center justify-center text-gray-500">
                 YouTube Player Loading...
             </div>
         </div>
     </div>
+    <!-- End Multimedia Area -->
 
     <script>
-        let activeDisplayPollingInterval = null;
-        const POLLING_INTERVAL_MS = 5000; // 5 seconds
-        const DEFAULT_YOUTUBE_VIDEO_ID = "dQw4w9WgXcQ"; // Default placeholder (Rick Astley)
-        let previousCallingQueueIds = new Set();
-
-        // DOM Elements
+        // --- Global Variables & Configuration ---
+        let activeDisplayPollingInterval = null;    // Interval ID for data polling
+        const POLLING_INTERVAL_MS = 5000;           // Data refresh interval (5 seconds)
+        const DEFAULT_YOUTUBE_VIDEO_ID = "dQw4w9WgXcQ"; // Placeholder YouTube video (Rick Astley)
+        let previouslyCallingQueueIds = new Set();  // Stores QueueIDs from the previous fetch to detect new calls
+        
+        // DOM Element References
         const callingArea = document.getElementById('callingArea');
         const waitingListArea = document.getElementById('waitingListArea');
         const youtubePlayerDiv = document.getElementById('youtubePlayer');
+        let audioPlayer = null;                     // Audio object for notification sound
+        let firstDataLoadComplete = false;          // Flag to prevent sound on initial page load for already calling queues
 
+        // --- Initialization ---
+
+        /**
+         * Initializes the display screen on page load.
+         * Sets up audio, fetches initial data, starts polling, and loads the YouTube player.
+         */
         function initializeDisplay() {
-            fetchDisplayData();
-            activeDisplayPollingInterval = setInterval(fetchDisplayData, POLLING_INTERVAL_MS);
-            loadYoutubePlayer(DEFAULT_YOUTUBE_VIDEO_ID); // Load default video
+            initializeAudioPlayer(); 
+            fetchDisplayData(); // Fetch data for the first time
+            activeDisplayPollingInterval = setInterval(fetchDisplayData, POLLING_INTERVAL_MS); // Start polling for updates
+            loadYoutubePlayer(DEFAULT_YOUTUBE_VIDEO_ID); // Load default or configured YouTube video
         }
 
-        function fetchDisplayData() {
-            google.script.run
-                .withSuccessHandler(processDisplayData)
-                .withFailureHandler(onFailure)
-                .getCurrentlyCallingAndWaitingQueuesForAllChannels(); // From display.gs
-        }
-
-        function processDisplayData(response) {
-            if (response && response.success) {
-                updateCallingDisplay(response.data.calling || []);
-                updateWaitingListDisplay(response.data.waiting || []);
-            } else {
-                console.error("Failed to fetch display data:", response.message);
-                // Optionally show a subtle error on screen, but keep trying
+        /**
+         * Initializes the Audio object for playing notification sounds.
+         * The sound URL is currently hardcoded but can be made configurable.
+         */
+        function initializeAudioPlayer() {
+            if (!audioPlayer) {
+                audioPlayer = new Audio();
+                audioPlayer.preload = "auto"; // Preload the audio file for faster playback
+                // TODO: Make this sound URL configurable via AppSettings in a future enhancement.
+                audioPlayer.src = "https://actions.google.com/sounds/v1/alarms/bell_timer.ogg"; 
+                
+                audioPlayer.onerror = function() {
+                    console.error("Error loading the notification sound file.");
+                    // Optionally, display a message to the user or admin if sound fails to load.
+                };
             }
         }
 
+        // --- Data Fetching and Processing ---
+
+        /**
+         * Fetches queue data from the server-side `getCurrentlyCallingAndWaitingQueuesForAllChannels` function.
+         */
+        function fetchDisplayData() {
+            google.script.run
+                .withSuccessHandler(processDisplayData) // Process data on success
+                .withFailureHandler(onFailure)           // Handle errors
+                .getCurrentlyCallingAndWaitingQueuesForAllChannels(); // Server-side function in display.gs
+        }
+
+        /**
+         * Processes the fetched queue data, updates the display, and triggers notification sounds for new calls.
+         * @param {object} response The response object from the server.
+         *                          Expected: { success: boolean, data?: { calling: Array<object>, waiting: Array<object> }, message?: string }
+         */
+        function processDisplayData(response) {
+            if (response && response.success) {
+                const currentCallingQueuesData = response.data.calling || [];
+                const currentWaitingQueuesData = response.data.waiting || [];
+
+                // --- Sound Notification Logic ---
+                const currentCallingQueueIds = new Set(currentCallingQueuesData.map(q => q.queueId));
+                let playSoundForNewCall = false;
+
+                if (firstDataLoadComplete) {
+                    // Check for any new queue IDs in the current "calling" list compared to the previous list.
+                    currentCallingQueueIds.forEach(id => {
+                        if (!previouslyCallingQueueIds.has(id)) {
+                            playSoundForNewCall = true; // A new queue is now calling
+                        }
+                    });
+                } else {
+                    // This is the first successful data load.
+                    // Populate `previouslyCallingQueueIds` without playing sounds for initially "calling" queues.
+                    firstDataLoadComplete = true;
+                }
+                
+                // If a new call is detected (and it's not the initial load), play the notification sound.
+                if (playSoundForNewCall && audioPlayer) {
+                    audioPlayer.play().catch(e => console.error("Audio playback error:", e));
+                }
+                
+                // Update the set of previously calling queue IDs for the next comparison.
+                previouslyCallingQueueIds = currentCallingQueueIds; 
+                // --- End Sound Notification Logic ---
+
+                // Update the UI with the fetched data.
+                updateCallingDisplay(currentCallingQueuesData);
+                updateWaitingListDisplay(currentWaitingQueuesData);
+
+            } else {
+                console.error("Failed to fetch display data or server returned an error:", response.message || "No message provided.");
+                // Optionally, display a subtle error message on the screen for admins/monitoring.
+            }
+        }
+
+        // --- UI Update Functions ---
+
+        /**
+         * Updates the "Currently Calling" section of the display.
+         * @param {Array<object>} callingQueues An array of queue objects currently in the "calling" state.
+         */
         function updateCallingDisplay(callingQueues) {
-            callingArea.innerHTML = ''; // Clear previous
-            const currentCallingQueueIds = new Set();
+            callingArea.innerHTML = ''; // Clear previous content
 
             if (!callingQueues || callingQueues.length === 0) {
                 const p = document.createElement('p');
                 p.className = 'text-center text-gray-400 text-2xl';
                 p.textContent = 'Waiting for next call...';
                 callingArea.appendChild(p);
-                previousCallingQueueIds.clear(); // Reset if nothing is calling
                 return;
             }
             
-            // Sort by timestampCalled to ensure newest are potentially highlighted or first
-            // The backend already sorts, but an additional client sort can be a failsafe
+            // Sort by timestampCalled to ensure newest are potentially highlighted or displayed first if multiple are calling.
+            // Backend already sorts, but client-side sort can be a failsafe or for specific client needs.
             callingQueues.sort((a, b) => new Date(b.timestampCalled) - new Date(a.timestampCalled));
 
             callingQueues.forEach(queue => {
                 const item = document.createElement('div');
-                item.className = 'calling-item animate-pulse'; // Added pulse for new items initially
+                // Add a pulse animation for a short duration for visual indication.
+                // This could be tied more directly to *new* items if needed, but for now, applies to all displayed.
+                item.className = 'calling-item animate-pulse'; 
                 
                 const queueNumberEl = document.createElement('div');
                 queueNumberEl.className = 'calling-queue-number';
@@ -144,21 +225,17 @@
                 item.appendChild(channelNameEl);
                 callingArea.appendChild(item);
 
-                currentCallingQueueIds.add(queue.queueId); // Use queueId for tracking
-
-                // TODO: When a new queue number appears in 'callingQueues' compared to the previous fetch, trigger a sound.
-                if (!previousCallingQueueIds.has(queue.queueId)) {
-                    console.log("New queue called:", queue.queueNumber, "at", queue.channelName, "(ID:", queue.queueId,") - Trigger sound!");
-                    // Example: playSound();
-                    // Remove pulse after a bit
-                    setTimeout(() => item.classList.remove('animate-pulse'), 3000);
-                }
+                // Remove pulse animation after a few seconds to avoid constant pulsing.
+                setTimeout(() => item.classList.remove('animate-pulse'), 3000); 
             });
-            previousCallingQueueIds = currentCallingQueueIds;
         }
 
+        /**
+         * Updates the "Waiting List" section of the display.
+         * @param {Array<object>} waitingQueues An array of queue objects currently in the "waiting" state.
+         */
         function updateWaitingListDisplay(waitingQueues) {
-            waitingListArea.innerHTML = ''; // Clear previous
+            waitingListArea.innerHTML = ''; // Clear previous content
             if (!waitingQueues || waitingQueues.length === 0) {
                 const p = document.createElement('p');
                 p.className = 'text-center text-gray-500 text-xl col-span-full';
@@ -170,37 +247,52 @@
             waitingQueues.forEach(queue => {
                 const item = document.createElement('div');
                 item.className = 'waiting-item';
-                item.textContent = `${queue.queueNumber} (${queue.channelName.substring(0,3)})`; // Shorten channel name if needed
+                // Display queue number and a shortened version of the channel name.
+                item.textContent = `${queue.queueNumber} (${queue.channelName.substring(0,3)}...)`; 
                 waitingListArea.appendChild(item);
             });
         }
 
+        // --- Multimedia Player ---
+
+        /**
+         * Loads and configures the YouTube player with a given video ID.
+         * @param {string} youtubeVideoId The ID of the YouTube video to embed.
+         */
         function loadYoutubePlayer(youtubeVideoId) {
             if (!youtubeVideoId) {
-                youtubePlayerDiv.innerHTML = '<div class="w-full h-full bg-black flex items-center justify-center text-gray-500">No video configured.</div>';
+                youtubePlayerDiv.innerHTML = '<div class="w-full h-full bg-black flex items-center justify-center text-gray-500">No YouTube video configured.</div>';
                 return;
             }
+            // YouTube embed URL with parameters for autoplay, mute, loop, and minimal UI.
             const embedUrl = `https://www.youtube.com/embed/${youtubeVideoId}?autoplay=1&mute=1&loop=1&playlist=${youtubeVideoId}&controls=0&modestbranding=1&showinfo=0&rel=0`;
             
             const iframe = document.createElement('iframe');
             iframe.setAttribute('src', embedUrl);
             iframe.setAttribute('frameborder', '0');
-            iframe.setAttribute('allow', 'autoplay; encrypted-media');
+            iframe.setAttribute('allow', 'autoplay; encrypted-media'); // Permissions for autoplay
             iframe.setAttribute('allowfullscreen', 'true');
             
-            youtubePlayerDiv.innerHTML = ''; // Clear placeholder
+            youtubePlayerDiv.innerHTML = ''; // Clear any placeholder content
             youtubePlayerDiv.appendChild(iframe);
         }
 
+        // --- Error Handling and Event Listeners ---
+
+        /**
+         * Generic failure handler for `google.script.run` calls.
+         * Logs the error to the console. For a public display, avoid showing disruptive errors on screen.
+         * @param {Error} error The error object from the failed call.
+         */
         function onFailure(error) {
-            console.error('GAS Call Error:', error);
-            // Display a subtle error message on screen, or simply log it and retry
-            // For a public display, avoid breaking the entire screen.
-            // Example: if (callingArea.innerHTML === '') callingArea.innerHTML = "<p class='text-red-400 text-center'>Error loading data. Retrying...</p>";
+            console.error('Google Apps Script Call Error:', error);
+            // Optionally, display a very subtle, non-intrusive error indicator if necessary.
+            // Example: if (callingArea.innerHTML === '') callingArea.innerHTML = "<p class='text-red-400 text-center text-xs'>Data error. Retrying...</p>";
         }
 
         // Event Listeners
-        window.addEventListener('load', initializeDisplay);
+        window.addEventListener('load', initializeDisplay); // Start initialization when the page loads.
+        // Cleanup polling when the page is closed or navigated away from.
         window.addEventListener('beforeunload', () => {
             if (activeDisplayPollingInterval) {
                 clearInterval(activeDisplayPollingInterval);
@@ -208,5 +300,7 @@
         });
 
     </script>
+    <!-- Note: The audio element could be statically defined here, but dynamic creation in JS is also fine. -->
+    <!-- <audio id="notificationSound" preload="auto" src="your-sound-url.mp3"></audio> -->
 </body>
 </html>

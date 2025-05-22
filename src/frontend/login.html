@@ -7,38 +7,48 @@
     <!-- Include styles.html if needed, but for login, Tailwind directly is fine -->
 </head>
 <body class="bg-gray-100 flex items-center justify-center h-screen">
+    <!-- Main Login Container -->
     <div class="bg-white p-8 rounded-lg shadow-md w-full max-w-md">
         <h1 class="text-2xl font-bold text-center mb-6">Queue System Login</h1>
 
-        <div class="mb-4">
-            <label for="username" class="block text-sm font-medium text-gray-700">Username</label>
-            <input type="text" id="username" name="username" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
-        </div>
+        <!-- Login Form -->
+        <form id="loginForm">
+            <div class="mb-4">
+                <label for="username" class="block text-sm font-medium text-gray-700">Username</label>
+                <input type="text" id="username" name="username" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" required>
+            </div>
 
-        <div class="mb-4">
-            <label for="password" class="block text-sm font-medium text-gray-700">Password</label>
-            <input type="password" id="password" name="password" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
-        </div>
+            <div class="mb-4">
+                <label for="password" class="block text-sm font-medium text-gray-700">Password</label>
+                <input type="password" id="password" name="password" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" required>
+            </div>
 
-        <div class="mb-4 flex items-center">
-            <input type="checkbox" id="showPassword" class="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500">
-            <label for="showPassword" class="ml-2 block text-sm text-gray-900">Show Password</label>
-        </div>
+            <div class="mb-4 flex items-center">
+                <input type="checkbox" id="showPassword" class="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500">
+                <label for="showPassword" class="ml-2 block text-sm text-gray-900">Show Password</label>
+            </div>
 
-        <button id="loginButton" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline">
-            Login
-        </button>
+            <button id="loginButton" type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline">
+                Login
+            </button>
+        </form>
+        <!-- End Login Form -->
 
         <div class="text-center mt-4">
             <a href="#" id="forgotPasswordLink" class="text-sm text-indigo-600 hover:text-indigo-800">Forgot Password?</a>
         </div>
 
+        <!-- Message Display Area -->
         <div id="messageArea" class="mt-4 text-sm text-center">
-            <!-- Messages will appear here -->
+            <!-- Messages from JavaScript will appear here -->
         </div>
+        <!-- End Message Display Area -->
     </div>
+    <!-- End Main Login Container -->
 
     <script>
+        // DOM Element References
+        const loginForm = document.getElementById('loginForm');
         const usernameInput = document.getElementById('username');
         const passwordInput = document.getElementById('password');
         const showPasswordCheckbox = document.getElementById('showPassword');
@@ -46,15 +56,30 @@
         const forgotPasswordLink = document.getElementById('forgotPasswordLink');
         const messageArea = document.getElementById('messageArea');
 
+        /**
+         * Displays a message to the user in the messageArea.
+         * @param {string} message The message to display.
+         * @param {boolean} [isError=false] True if the message is an error, false otherwise.
+         */
         function displayMessage(message, isError = false) {
             messageArea.textContent = message;
-            messageArea.className = isError ? 'mt-4 text-sm text-center text-red-500' : 'mt-4 text-sm text-center text-green-500';
-            if (!isError && message.includes("Redirecting")) {
-                 messageArea.className = 'mt-4 text-sm text-center text-blue-500';
+            // Apply different styling based on whether it's an error, success, or info message.
+            if (isError) {
+                messageArea.className = 'mt-4 text-sm text-center text-red-500';
+            } else if (message.includes("Redirecting") || message.includes("Processing") || message.includes("Logging in")) {
+                messageArea.className = 'mt-4 text-sm text-center text-blue-500';
+            } else {
+                messageArea.className = 'mt-4 text-sm text-center text-green-500';
             }
         }
 
-        function handleLogin() {
+        /**
+         * Handles the login form submission.
+         * Retrieves username and password, validates them, and calls the server-side login function.
+         * @param {Event} event The form submission event.
+         */
+        function handleLogin(event) {
+            event.preventDefault(); // Prevent default form submission
             const username = usernameInput.value.trim();
             const password = passwordInput.value.trim();
 
@@ -63,115 +88,129 @@
                 return;
             }
             displayMessage("Logging in...", false);
+            // Call server-side 'login' function using google.script.run
             google.script.run
-                .withSuccessHandler(processLoginResponse)
-                .withFailureHandler(onFailure)
-                .login(username, password);
+                .withSuccessHandler(processLoginResponse) // Function to call on successful execution
+                .withFailureHandler(onFailure)           // Function to call on failed execution
+                .login(username, password);              // Server-side function to call
         }
 
+        /**
+         * Processes the response from the server-side login function.
+         * If login is successful, stores the current page as 'dashboard' and redirects.
+         * @param {object} response The response object from the server-side login function.
+         *                          Expected: { success: boolean, user?: object, message?: string }
+         */
         function processLoginResponse(response) {
             if (response.success) {
                 displayMessage("Login successful! Redirecting to dashboard...", false);
-                google.script.run.storeCurrentPage('dashboard');
-                // In a real GAS web app, redirection is handled by returning new HTML content
-                // or using `google.script.history.push` or `google.script.host.origin`.
-                // For now, we'll simulate the intent.
-                // We'd typically get the main app URL and append ?page=dashboard
-                google.script.run.withSuccessHandler(function(url) {
-                     // This simulates navigation. Actual navigation would be more complex.
-                     // window.location.href = url + (url.includes('?') ? '&' : '?') + 'page=dashboard';
-                     // For now, we'll just show an alert that we WOULD redirect.
-                     // alert("Login successful. Redirecting to dashboard. App URL: " + url);
-                     // Or, more simply, tell the user the next step.
-                     displayMessage("Login successful! Please wait while we prepare your dashboard.", false);
-                     // Attempt to load the dashboard page if it's served by the same script
-                     // This requires doGet(e) to handle page routing
-                     google.script.run.withSuccessHandler(function(newUrl){
-                        window.top.location.href = newUrl; // Try to redirect the top window
-                     }).withFailureHandler(onFailure).getServedUrl("dashboard");
-
-                }).withFailureHandler(onFailure).getScriptUrl();
-
+                google.script.run.storeCurrentPage('dashboard'); // Store intended page in session
+                // Request the URL for the dashboard and redirect
+                google.script.run
+                    .withSuccessHandler(function(newUrl){
+                        window.top.location.href = newUrl; // Redirect the top-level window
+                    })
+                    .withFailureHandler(onFailure)
+                    .getServedUrl("dashboard"); // Get URL for 'dashboard' page
             } else {
-                displayMessage(response.message || "Login failed.", true);
+                displayMessage(response.message || "Login failed. Please check your credentials.", true);
             }
         }
 
+        /**
+         * Handles the "Forgot Password" link click.
+         * Prompts the user for their email and calls the server-side forgotPassword function.
+         */
         function handleForgotPassword() {
-            const email = prompt("Please enter your email address:");
+            const email = prompt("Please enter your email address to reset your password:");
             if (email && email.trim() !== "") {
-                displayMessage("Processing request...", false);
+                displayMessage("Processing password reset request...", false);
                 google.script.run
                     .withSuccessHandler(processForgotPasswordResponse)
                     .withFailureHandler(onFailure)
                     .forgotPassword(email.trim());
-            } else if (email !== null) { // user didn't cancel prompt but entered empty
-                displayMessage("Email address cannot be empty.", true);
+            } else if (email !== null) { // User clicked OK but entered nothing
+                displayMessage("Email address cannot be empty for password reset.", true);
             }
         }
 
+        /**
+         * Processes the response from the server-side forgotPassword function.
+         * Displays messages to the user, including the temporary password if provided (for testing).
+         * @param {object} response The response object from the server.
+         *                          Expected: { success: boolean, newPassword?: string, message?: string }
+         */
         function processForgotPasswordResponse(response) {
             if (response.success) {
                 let msg = response.message;
-                if (response.newPassword) { // As per current backend design
-                    msg += " Your temporary password is: " + response.newPassword;
+                // In a production environment, the newPassword should NOT be sent to the client.
+                // It's included here based on the existing backend design for temporary display/testing.
+                if (response.newPassword) { 
+                    msg += " Your temporary password is: " + response.newPassword + ". Please change it after logging in.";
                 }
                 displayMessage(msg, false);
             } else {
-                displayMessage(response.message || "Password recovery failed.", true);
+                displayMessage(response.message || "Password recovery failed. Please try again.", true);
             }
         }
 
+        /**
+         * Toggles the visibility of the password input field.
+         */
         function togglePasswordVisibility() {
             passwordInput.type = showPasswordCheckbox.checked ? 'text' : 'password';
         }
 
+        /**
+         * Checks the user's session status when the page loads.
+         * If already logged in, redirects to the appropriate page.
+         */
         function checkSessionOnLoad() {
             displayMessage("Checking session...", false);
             google.script.run
                 .withSuccessHandler(processSessionCheck)
                 .withFailureHandler(onFailure)
-                .checkUserSession();
+                .checkUserSession(); // Server-side function to check session
         }
 
+        /**
+         * Processes the response from the server-side session check.
+         * If the user is logged in, redirects them to their last known page or the dashboard.
+         * @param {object} response The session status object from the server.
+         *                          Expected: { isLoggedIn: boolean, user?: object, currentPage?: string }
+         */
         function processSessionCheck(response) {
             if (response.isLoggedIn) {
-                displayMessage("Already logged in. Redirecting to " + (response.currentPage || "dashboard") + "...", false);
-                // Similar to login, redirecting is complex.
-                // We'll assume the main script handles routing.
-                google.script.run.withSuccessHandler(function(url){
-                     // window.location.href = url + (url.includes('?') ? '&' : '?') + 'page=' + (response.currentPage || 'dashboard');
-                     // alert("Already logged in. Redirecting to " + (response.currentPage || "dashboard") + ". App URL: " + url);
-                     displayMessage("Welcome back, " + response.user.username + "! Redirecting...", false);
-                     google.script.run.withSuccessHandler(function(newUrl){
+                const targetPage = response.currentPage || "dashboard";
+                displayMessage("Welcome back, " + response.user.username + "! Redirecting to " + targetPage + "...", false);
+                // Request URL for the target page and redirect
+                google.script.run
+                    .withSuccessHandler(function(newUrl){
                         window.top.location.href = newUrl;
-                     }).withFailureHandler(onFailure).getServedUrl(response.currentPage || "dashboard");
-
-                }).withFailureHandler(onFailure).getScriptUrl();
+                    })
+                    .withFailureHandler(onFailure)
+                    .getServedUrl(targetPage);
             } else {
-                displayMessage("Please log in.", false); // Clear "Checking session..."
+                displayMessage("Please log in.", false); // Clear "Checking session..." message
             }
         }
         
-        // This function will be used by getServedUrl to actually get the URL
-        // This is a placeholder and might need to be in main.gs or similar
-        // if we want a generic URL builder for pages.
-        // For now, let's assume getScriptUrl() gives the base and we append page name.
-        // However, a better way is to have a function in GAS that returns the full URL for a given page identifier.
-        // Let's define a dummy getServedUrl in GAS later. For now, the client side will call it.
-        // We will add a function `getServedUrl(pageName)` in `main.gs` later.
-
+        /**
+         * Generic failure handler for google.script.run calls.
+         * Displays an error message and logs the error to the console.
+         * @param {Error} error The error object from the failed call.
+         */
         function onFailure(error) {
             messageArea.textContent = 'An error occurred: ' + error.message;
-            messageArea.className = 'mt-4 text-sm text-center text-red-500';
-            console.error('GAS call failed:', error);
+            messageArea.className = 'mt-4 text-sm text-center text-red-500'; // Ensure error styling
+            console.error('Google Apps Script call failed:', error);
         }
 
-        // Event Listeners
-        loginButton.addEventListener('click', handleLogin);
+        // Event Listeners Setup
+        loginForm.addEventListener('submit', handleLogin); // Handle form submission
         forgotPasswordLink.addEventListener('click', handleForgotPassword);
         showPasswordCheckbox.addEventListener('change', togglePasswordVisibility);
-        window.addEventListener('load', checkSessionOnLoad);
+        window.addEventListener('load', checkSessionOnLoad); // Check session on page load
 
     </script>
 </body>

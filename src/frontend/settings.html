@@ -1,11 +1,470 @@
-<!-- HTML for settings page -->
 <!DOCTYPE html>
-<html>
+<html lang="en">
 <head>
-    <title>Settings</title>
-    <!-- Include Tailwind CSS and styles.html -->
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>System Settings - Queue Management</title>
+    <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
+    <style>
+        /* Additional custom styles if needed */
+        .modal {
+            transition: opacity 0.25s ease;
+        }
+        /* Ensure table layout is fixed for consistent column widths if needed */
+        /* #serviceChannelsTable { table-layout: fixed; } */
+    </style>
 </head>
-<body>
-    <!-- Settings content -->
+<body class="bg-gray-100 min-h-screen">
+    <!-- Main Settings Container -->
+    <div class="container mx-auto p-4 md:p-8">
+        <!-- Header Section -->
+        <header class="bg-white shadow rounded-lg p-6 mb-6 flex justify-between items-center">
+            <h1 class="text-xl md:text-2xl font-bold text-gray-800">System Settings</h1>
+            <button id="backToDashboardButton" class="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline">
+                Back to Dashboard
+            </button>
+        </header>
+        <!-- End Header Section -->
+
+        <!-- Message Display Area -->
+        <div id="settingsMessageArea" class="mb-4 text-sm text-center p-3 rounded-md">
+            <!-- Messages from JavaScript will appear here -->
+        </div>
+        <!-- End Message Display Area -->
+
+        <!-- Service Channels Management Section -->
+        <section class="mb-8 p-6 bg-white rounded-lg shadow">
+            <h2 class="text-lg font-semibold text-gray-700 mb-4">Manage Service Channels</h2>
+            
+            <!-- Form to Add New Channel -->
+            <form id="addChannelForm" class="mb-6 p-4 border border-gray-200 rounded-md">
+                <h3 class="text-md font-medium text-gray-700 mb-2">Add New Channel</h3>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4 items-end">
+                    <div>
+                        <label for="newChannelName" class="block text-sm font-medium text-gray-600">Channel Name</label>
+                        <input type="text" id="newChannelName" name="newChannelName" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" required>
+                    </div>
+                    <div>
+                        <label for="newChannelCode" class="block text-sm font-medium text-gray-600">Channel Code (e.g., A, B)</label>
+                        <input type="text" id="newChannelCode" name="newChannelCode" maxlength="3" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" required>
+                    </div>
+                    <button id="addChannelButton" type="submit" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded h-10">
+                        Add Channel
+                    </button>
+                </div>
+            </form>
+            <!-- End Add New Channel Form -->
+
+            <!-- Table Displaying Service Channels -->
+            <div class="overflow-x-auto">
+                <table id="serviceChannelsTable" class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Code</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                        <!-- Channel rows will be populated by JavaScript -->
+                    </tbody>
+                </table>
+            </div>
+            <!-- End Channels Table -->
+        </section>
+        <!-- End Service Channels Management Section -->
+
+        <!-- Application Settings Section -->
+        <section class="p-6 bg-white rounded-lg shadow">
+            <h2 class="text-lg font-semibold text-gray-700 mb-4">Application Settings</h2>
+            <form id="appSettingsForm">
+                <div class="mb-4">
+                    <label for="youtubeVideoId" class="block text-sm font-medium text-gray-700">YouTube Video ID (for Display Screen)</label>
+                    <input type="text" id="youtubeVideoId" name="youtubeVideoId" class="mt-1 block w-full md:w-1/2 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                </div>
+                <!-- TODO: Add input for defaultNotificationSoundUrl in a future enhancement -->
+                <!-- <div class="mb-4">
+                    <label for="defaultSoundUrl" class="block text-sm font-medium text-gray-700">Default Notification Sound URL</label>
+                    <input type="url" id="defaultSoundUrl" name="defaultSoundUrl" class="mt-1 block w-full md:w-1/2 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                </div> -->
+                <button id="saveAppSettingsButton" type="submit" class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">
+                    Save App Settings
+                </button>
+            </form>
+        </section>
+        <!-- End Application Settings Section -->
+    </div>
+    <!-- End Main Settings Container -->
+
+    <!-- Modal for Editing Service Channel -->
+    <div id="editChannelModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-75 overflow-y-auto h-full w-full z-50 modal">
+        <div class="relative top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 p-5 border w-full max-w-md shadow-lg rounded-md bg-white">
+            <!-- Modal Header -->
+            <div class="flex justify-between items-center mb-3">
+                <h3 class="text-lg font-medium text-gray-900">Edit Service Channel</h3>
+                <button id="closeEditModalButton" class="text-gray-400 hover:text-gray-600">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+            <!-- End Modal Header -->
+            <!-- Modal Body: Edit Channel Form -->
+            <form id="editChannelFormModal">
+                <input type="hidden" id="editChannelId"> <!-- Hidden input to store channel ID being edited -->
+                <div class="mb-4">
+                    <label for="editChannelName" class="block text-sm font-medium text-gray-700">Channel Name</label>
+                    <input type="text" id="editChannelName" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" required>
+                </div>
+                <div class="mb-4">
+                    <label for="editChannelCode" class="block text-sm font-medium text-gray-700">Channel Code</label>
+                    <input type="text" id="editChannelCode" maxlength="3" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" required>
+                </div>
+                <div class="mb-4">
+                    <label for="editChannelIsEnabled" class="flex items-center text-sm font-medium text-gray-700">
+                        <input type="checkbox" id="editChannelIsEnabled" class="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500 mr-2">
+                        Enabled
+                    </label>
+                </div>
+                <div class="flex justify-end space-x-2">
+                    <button id="cancelEditChannelButton" type="button" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded">Cancel</button>
+                    <button id="saveEditChannelButton" type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded">Save Changes</button>
+                </div>
+            </form>
+            <!-- End Modal Body -->
+        </div>
+    </div>
+    <!-- End Edit Channel Modal -->
+
+
+    <script>
+        // --- DOM Element References ---
+        const settingsMessageArea = document.getElementById('settingsMessageArea');
+        const backToDashboardButton = document.getElementById('backToDashboardButton');
+        
+        // Service Channels Elements
+        const addChannelForm = document.getElementById('addChannelForm');
+        const newChannelNameInput = document.getElementById('newChannelName');
+        const newChannelCodeInput = document.getElementById('newChannelCode');
+        const serviceChannelsTable = document.getElementById('serviceChannelsTable').getElementsByTagName('tbody')[0];
+
+        // Edit Channel Modal Elements
+        const editChannelModal = document.getElementById('editChannelModal');
+        const editChannelFormModal = document.getElementById('editChannelFormModal');
+        const editChannelIdInput = document.getElementById('editChannelId');
+        const editChannelNameInput = document.getElementById('editChannelName');
+        const editChannelCodeInput = document.getElementById('editChannelCode');
+        const editChannelIsEnabledCheckbox = document.getElementById('editChannelIsEnabled');
+        const closeEditModalButton = document.getElementById('closeEditModalButton');
+        const cancelEditChannelButton = document.getElementById('cancelEditChannelButton');
+        // const saveEditChannelButton = document.getElementById('saveEditChannelButton'); // Referenced by form submit event
+
+        // Application Settings Elements
+        const appSettingsForm = document.getElementById('appSettingsForm');
+        const youtubeVideoIdInput = document.getElementById('youtubeVideoId');
+        // const defaultSoundUrlInput = document.getElementById('defaultSoundUrl'); // Example for future
+
+        // --- Utility Functions ---
+
+        /**
+         * Displays a message in the settings page message area.
+         * @param {string} message The message text.
+         * @param {boolean} [isError=false] True if it's an error message for styling.
+         */
+        function displaySettingsMessage(message, isError = false) {
+            settingsMessageArea.textContent = message;
+            if (isError) {
+                settingsMessageArea.className = 'mb-4 text-sm text-center p-3 rounded-md bg-red-100 text-red-700';
+            } else if (!message) { // Reset class if message is empty
+                settingsMessageArea.className = 'mb-4 text-sm text-center p-3 rounded-md';
+            } else { // Info/success
+                settingsMessageArea.className = 'mb-4 text-sm text-center p-3 rounded-md bg-blue-100 text-blue-700';
+            }
+        }
+
+        // --- Initialization and Session Management ---
+
+        /**
+         * Initializes the settings page: checks user session and admin role, then loads settings.
+         */
+        function initializeSettingsPage() {
+            displaySettingsMessage("Initializing settings...", false);
+            google.script.run
+                .withSuccessHandler(processAdminSession)
+                .withFailureHandler(redirectToLogin) // redirectToLogin handles error display
+                .checkUserSession(); // Server-side function from auth.gs
+        }
+
+        /**
+         * Processes session details. Redirects if not an admin. Otherwise, loads initial settings data.
+         * @param {object} session Expected: { isLoggedIn: boolean, user?: { role: string } }
+         */
+        function processAdminSession(session) {
+            if (!session || !session.isLoggedIn) {
+                redirectToLogin({ message: "Session invalid or not logged in. Please log in." });
+                return;
+            }
+            if (session.user.role !== 'admin') {
+                displaySettingsMessage("Unauthorized access. Admin role required. Redirecting to dashboard...", true);
+                setTimeout(() => navigateTo('dashboard'), 3000); // Redirect after a delay
+                return;
+            }
+            displaySettingsMessage("Admin user validated. Loading settings data...", false);
+            loadInitialSettings(); // Load application settings and service channels list
+        }
+
+        /**
+         * Loads both application settings and the list of service channels.
+         */
+        function loadInitialSettings() {
+            // Load Application Settings (e.g., YouTube ID)
+            google.script.run
+                .withSuccessHandler(response => {
+                    if (response.success && response.settings) {
+                        youtubeVideoIdInput.value = response.settings.youtubeVideoId || '';
+                        // defaultSoundUrlInput.value = response.settings.defaultNotificationSoundUrl || ''; // For future
+                    } else {
+                        displaySettingsMessage(response.message || "Failed to load application settings.", true);
+                    }
+                })
+                .withFailureHandler(onFailure)
+                .getAppSettingsClient(); // Server-side function from settings_management.gs
+
+            // Load Service Channels list
+            loadServiceChannelsList();
+        }
+        
+        // --- Service Channel Management ---
+
+        /**
+         * Fetches the list of all service channels (enabled and disabled) and renders them in the table.
+         */
+        function loadServiceChannelsList() {
+             google.script.run
+                .withSuccessHandler(response => {
+                    if (response.success && response.channels) {
+                        renderServiceChannelsTable(response.channels);
+                    } else {
+                        displaySettingsMessage(response.message || "Failed to load service channels.", true);
+                    }
+                })
+                .withFailureHandler(onFailure)
+                .getServiceChannelsClient(); // Server-side function from settings_management.gs
+        }
+
+        /**
+         * Renders the service channels data into the HTML table.
+         * @param {Array<object>} channels Array of service channel objects.
+         */
+        function renderServiceChannelsTable(channels) {
+            serviceChannelsTable.innerHTML = ''; // Clear existing table rows
+            if (!channels || channels.length === 0) {
+                const row = serviceChannelsTable.insertRow();
+                const cell = row.insertCell();
+                cell.colSpan = 4; // Span across all columns
+                cell.className = 'px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center';
+                cell.textContent = 'No service channels configured yet.';
+                return;
+            }
+
+            channels.forEach(channel => {
+                const row = serviceChannelsTable.insertRow();
+                row.insertCell().textContent = channel.ChannelName;
+                row.insertCell().textContent = channel.ChannelCode;
+                
+                // Display status (Enabled/Disabled) with a styled badge
+                const statusCell = row.insertCell();
+                const statusBadge = document.createElement('span');
+                statusBadge.textContent = channel.IsEnabled ? 'Enabled' : 'Disabled';
+                statusBadge.className = `px-2 inline-flex text-xs leading-5 font-semibold rounded-full ${channel.IsEnabled ? 'bg-green-100 text-green-800' : 'bg-red-100 text-red-800'}`;
+                statusCell.appendChild(statusBadge);
+
+                // Add an "Edit" button for each channel
+                const actionsCell = row.insertCell();
+                const editButton = document.createElement('button');
+                editButton.textContent = 'Edit';
+                editButton.className = 'text-indigo-600 hover:text-indigo-900 text-sm font-medium';
+                editButton.onclick = () => handleEditChannel(channel); // Pass channel data to edit handler
+                actionsCell.appendChild(editButton);
+            });
+        }
+
+        /**
+         * Handles the submission of the "Add New Channel" form.
+         * @param {Event} event The form submission event.
+         */
+        function handleAddChannel(event) {
+            event.preventDefault(); // Prevent default form submission
+            const name = newChannelNameInput.value.trim();
+            const code = newChannelCodeInput.value.trim().toUpperCase();
+
+            if (!name || !code) {
+                displaySettingsMessage("Channel Name and Code cannot be empty.", true);
+                return;
+            }
+            displaySettingsMessage("Adding new channel...", false);
+            google.script.run
+                .withSuccessHandler(processAddChannelResponse)
+                .withFailureHandler(onFailure)
+                .addServiceChannelClient(name, code); // Server-side function
+        }
+
+        /**
+         * Processes the response from adding a new channel.
+         * @param {object} response Expected: { success: boolean, message: string, newChannel?: object }
+         */
+        function processAddChannelResponse(response) {
+            displaySettingsMessage(response.message, !response.success);
+            if (response.success) {
+                loadServiceChannelsList(); // Refresh the channel list
+                addChannelForm.reset();    // Clear the form inputs
+            }
+        }
+
+        /**
+         * Populates and opens the "Edit Channel" modal with the selected channel's data.
+         * @param {object} channel The service channel object to edit.
+         */
+        function handleEditChannel(channel) {
+            editChannelIdInput.value = channel.ServiceChannelID;
+            editChannelNameInput.value = channel.ChannelName;
+            editChannelCodeInput.value = channel.ChannelCode;
+            editChannelIsEnabledCheckbox.checked = channel.IsEnabled;
+            editChannelModal.classList.remove('hidden'); // Show the modal
+        }
+
+        /**
+         * Closes the "Edit Channel" modal and resets its form.
+         */
+        function closeEditModal() {
+            editChannelModal.classList.add('hidden'); // Hide the modal
+            editChannelFormModal.reset(); // Reset form fields
+        }
+
+        /**
+         * Handles saving changes from the "Edit Channel" modal form.
+         * @param {Event} event The form submission event.
+         */
+        function handleSaveChannelChanges(event) {
+            event.preventDefault(); // Prevent default form submission
+            const id = editChannelIdInput.value;
+            const name = editChannelNameInput.value.trim();
+            const code = editChannelCodeInput.value.trim().toUpperCase();
+            const isEnabled = editChannelIsEnabledCheckbox.checked;
+
+            if (!name || !code) {
+                // Using alert for modal-specific feedback as messageArea might be obscured
+                alert("Channel Name and Code cannot be empty."); 
+                return;
+            }
+            displaySettingsMessage("Saving channel changes...", false); // Update main page message area
+            google.script.run
+                .withSuccessHandler(processUpdateChannelResponse)
+                .withFailureHandler(onFailure)
+                .updateServiceChannelClient(id, name, code, isEnabled); // Server-side function
+        }
+
+        /**
+         * Processes the response from updating a service channel.
+         * @param {object} response Expected: { success: boolean, message: string, updatedChannel?: object }
+         */
+        function processUpdateChannelResponse(response) {
+            displaySettingsMessage(response.message, !response.success);
+            if (response.success) {
+                loadServiceChannelsList(); // Refresh the channel list
+                closeEditModal();          // Close the modal on success
+            }
+        }
+
+        // --- Application Settings Management ---
+
+        /**
+         * Handles saving the application settings form.
+         * @param {Event} event The form submission event.
+         */
+        function handleSaveAppSettings(event) {
+            event.preventDefault(); // Prevent default form submission
+            const youtubeId = youtubeVideoIdInput.value.trim();
+            // const soundUrl = defaultSoundUrlInput.value.trim(); // Example for future
+            
+            displaySettingsMessage("Saving application settings...", false);
+            
+            // Call server-side function to update YouTube Video ID
+            google.script.run
+                .withSuccessHandler(processUpdateSettingResponse) // Generic response handler
+                .withFailureHandler(onFailure)
+                .updateSettingClient('youtubeVideoId', youtubeId); // Server-side function
+            
+            // TODO: If other settings are added (e.g., defaultNotificationSoundUrl),
+            // call updateSettingClient for each. Consider batching updates if many settings.
+            // google.script.run
+            //     .withSuccessHandler(processUpdateSettingResponse)
+            //     .withFailureHandler(onFailure)
+            //     .updateSettingClient('defaultNotificationSoundUrl', soundUrl);
+        }
+
+        /**
+         * Processes the response from updating an application setting.
+         * @param {object} response Expected: { success: boolean, message: string }
+         */
+        function processUpdateSettingResponse(response) {
+            displaySettingsMessage(response.message, !response.success);
+            // Optionally, can reload specific settings if needed, but often a message is sufficient.
+            // if(response.success) { loadInitialSettings(); } // Could reload all settings
+        }
+        
+        // --- Navigation and Error Handling ---
+
+        /**
+         * Redirects to the login page, displaying an optional error message.
+         * @param {object|null} [error=null] Optional error object.
+         */
+        function redirectToLogin(error) {
+            let message = "Redirecting to login...";
+            if (error && error.message) message = error.message + " " + message;
+            displaySettingsMessage(message, true);
+            google.script.run
+                .withSuccessHandler(url => { window.top.location.href = url; })
+                .withFailureHandler(mf => displaySettingsMessage("Critical: Could not get login page URL.", true))
+                .getServedUrl('login');
+        }
+
+        /**
+         * Navigates to a specified page. Clears any active polling intervals.
+         * @param {string} pageName The name of the page (e.g., 'dashboard').
+         */
+        function navigateTo(pageName) {
+            displaySettingsMessage(`Navigating to ${pageName}...`, false);
+            // If there were any polling intervals on this page, clear them before navigating.
+            // Example: if (activePollingInterval) clearInterval(activePollingInterval); 
+            google.script.run.storeCurrentPage(pageName);
+            google.script.run
+                .withSuccessHandler(url => { window.top.location.href = url; })
+                .withFailureHandler(onFailure)
+                .getServedUrl(pageName);
+        }
+
+        /**
+         * Generic failure handler for `google.script.run` calls.
+         * @param {Error} error The error object.
+         */
+        function onFailure(error) {
+            console.error('Google Apps Script Call Error:', error);
+            displaySettingsMessage('An error occurred: ' + error.message, true);
+        }
+
+        // --- Event Listeners Setup ---
+        window.addEventListener('load', initializeSettingsPage); // Initialize on page load
+        backToDashboardButton.addEventListener('click', () => navigateTo('dashboard'));
+        
+        // Form submission listeners
+        addChannelForm.addEventListener('submit', handleAddChannel);
+        appSettingsForm.addEventListener('submit', handleSaveAppSettings);
+
+        // Modal interaction listeners
+        closeEditModalButton.addEventListener('click', closeEditModal);
+        cancelEditChannelButton.addEventListener('click', closeEditModal);
+        editChannelFormModal.addEventListener('submit', handleSaveChannelChanges);
+
+    </script>
 </body>
 </html>

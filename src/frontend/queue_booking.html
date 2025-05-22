@@ -4,40 +4,55 @@
     <title>Book Queue Ticket - Queue System</title>
     <link href="https://cdn.jsdelivr.net/npm/tailwindcss@2.2.19/dist/tailwind.min.css" rel="stylesheet">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <!-- Print-specific Styles -->
     <style>
         @media print {
+            /* Hide everything except the printable ticket area when printing */
             body * {
                 visibility: hidden;
             }
             #printableTicket, #printableTicket * {
                 visibility: visible;
             }
+            /* Ensure the ticket takes up the full printable area */
             #printableTicket {
                 position: absolute;
                 left: 0;
                 top: 0;
                 width: 100%;
-                border: none !important; /* Ensure no border on print */
+                border: none !important; /* Remove border for printing */
+                box-shadow: none !important; /* Remove shadow for printing */
+                padding: 0.5in; /* Adjust padding for print layout */
+                background-color: white !important; /* Ensure background is white for print */
             }
+            /* Hide elements marked with 'no-print' class during printing */
             .no-print {
                 display: none !important;
             }
         }
     </style>
+    <!-- End Print-specific Styles -->
 </head>
 <body class="bg-gray-100 flex flex-col items-center justify-center min-h-screen p-4">
+    <!-- Main Container for Queue Booking -->
     <div class="w-full max-w-lg bg-white p-6 md:p-8 rounded-lg shadow-xl">
         <h1 class="text-2xl md:text-3xl font-bold text-center text-gray-800 mb-6">Get Your Queue Ticket</h1>
 
+        <!-- Message Display Area -->
         <div id="bookingMessageArea" class="mb-4 text-sm text-center p-3 rounded-md">
-            <!-- Messages will appear here -->
+            <!-- Messages from JavaScript will appear here -->
         </div>
+        <!-- End Message Display Area -->
 
-        <button id="getTicketButton" class="w-full bg-green-500 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg shadow-md focus:outline-none focus:shadow-outline text-lg transition duration-150 ease-in-out">
+        <!-- Ticket Booking Button -->
+        <button id="getTicketButton" class="w-full bg-green-500 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg shadow-md focus:outline-none focus:shadow-outline text-lg transition duration-150 ease-in-out no-print">
             Get Queue Ticket
         </button>
+        <!-- End Ticket Booking Button -->
 
+        <!-- Ticket Information Display Area (Initially Hidden) -->
         <div id="ticketInfoArea" class="mt-6 hidden">
+            <!-- Printable Ticket Section -->
             <div id="printableTicket" class="p-6 border-2 border-dashed border-gray-400 rounded-lg bg-gray-50">
                 <h3 class="text-xl font-bold text-center text-gray-700">Your Queue Ticket</h3>
                 <hr class="my-3 border-gray-300">
@@ -46,18 +61,22 @@
                 <p class="text-sm text-center text-gray-500">Issued: <span id="timestampDisplay" class="font-medium">---</span></p>
                 <p class="text-xs text-center mt-3 text-gray-500">Please wait for your number to be called. Thank you!</p>
             </div>
+            <!-- End Printable Ticket Section -->
 
             <button id="printTicketButton" class="mt-6 w-full bg-blue-500 hover:bg-blue-700 text-white font-bold py-3 px-4 rounded-lg shadow-md focus:outline-none focus:shadow-outline text-lg no-print transition duration-150 ease-in-out">
                 Print Ticket
             </button>
         </div>
+        <!-- End Ticket Information Display Area -->
 
         <button id="backToDashboardButton" class="mt-8 w-full bg-gray-500 hover:bg-gray-700 text-white font-bold py-3 px-4 rounded-lg shadow-md focus:outline-none focus:shadow-outline text-lg no-print transition duration-150 ease-in-out">
             Back to Dashboard
         </button>
     </div>
+    <!-- End Main Container -->
 
     <script>
+        // DOM Element References
         const getTicketButton = document.getElementById('getTicketButton');
         const ticketInfoArea = document.getElementById('ticketInfoArea');
         const queueNumberDisplay = document.getElementById('queueNumberDisplay');
@@ -66,112 +85,149 @@
         const printTicketButton = document.getElementById('printTicketButton');
         const backToDashboardButton = document.getElementById('backToDashboardButton');
         const bookingMessageArea = document.getElementById('bookingMessageArea');
-        const printableTicketDiv = document.getElementById('printableTicket'); // Used for print content
+        // const printableTicketDiv = document.getElementById('printableTicket'); // Already part of ticketInfoArea
 
+        /**
+         * Displays a message in the booking message area.
+         * @param {string} message The message to display.
+         * @param {boolean} [isError=false] True if it's an error message for styling.
+         */
         function displayBookingMessage(message, isError = false) {
             bookingMessageArea.textContent = message;
             if (isError) {
                 bookingMessageArea.className = 'mb-4 text-sm text-center p-3 rounded-md bg-red-100 text-red-700';
-            } else {
-                bookingMessageArea.className = 'mb-4 text-sm text-center p-3 rounded-md bg-blue-100 text-blue-700';
+            } else if (!message) { // Reset class if message is empty
+                 bookingMessageArea.className = 'mb-4 text-sm text-center p-3 rounded-md'; 
             }
-            if (!message) {
-                 bookingMessageArea.className = 'mb-4 text-sm text-center p-3 rounded-md'; // Reset if no message
+            else { // Info/success message
+                bookingMessageArea.className = 'mb-4 text-sm text-center p-3 rounded-md bg-blue-100 text-blue-700';
             }
         }
 
+        /**
+         * Initializes the page on load: checks user session.
+         */
         function initializePage() {
             displayBookingMessage("Checking session...", false);
             google.script.run
                 .withSuccessHandler(processSessionDetails)
-                .withFailureHandler(redirectToLogin)
-                .checkUserSession();
+                .withFailureHandler(redirectToLogin) // redirectToLogin will handle the error display
+                .checkUserSession(); // Server-side function
         }
 
+        /**
+         * Processes session details from the server. Redirects to login if session is invalid.
+         * @param {object} session Expected: { isLoggedIn: boolean, user?: object }
+         */
         function processSessionDetails(session) {
             if (!session || !session.isLoggedIn) {
-                redirectToLogin({ message: "Session invalid or not logged in." });
+                redirectToLogin({ message: "Session invalid or not logged in. Please log in to book a ticket." });
             } else {
                 displayBookingMessage("Ready to book your ticket.", false);
-                // You could display user info here if needed
-                // welcomeUserMessage.textContent = `Hello, ${session.user.username}!`;
+                // Optionally, display user info: welcomeUserMessage.textContent = `Hello, ${session.user.username}!`;
             }
         }
 
+        /**
+         * Redirects to the login page, displaying an optional error message.
+         * @param {object|null} [error=null] Optional error object.
+         */
         function redirectToLogin(error) {
-            if (error) {
-                console.error("Session check failed or not logged in:", error);
-                displayBookingMessage("Session invalid or expired. Redirecting to login...", true);
+            let msg = "Redirecting to login...";
+            if (error && error.message) {
+                msg = error.message + " " + msg;
+                console.error("Redirecting to login due to:", error.message);
             }
+            displayBookingMessage(msg, true);
             google.script.run
                 .withSuccessHandler(function(url) { window.top.location.href = url; })
-                .withFailureHandler(onFailure)
+                .withFailureHandler(onFailure) // Handle failure to get login URL
                 .getServedUrl('login');
         }
 
+        /**
+         * Handles the "Get Queue Ticket" button click.
+         * Calls the server-side function to book a new ticket.
+         */
         function handleGetTicket() {
-            getTicketButton.disabled = true;
+            getTicketButton.disabled = true; // Prevent multiple clicks
             displayBookingMessage("Processing your ticket request...", false);
             google.script.run
                 .withSuccessHandler(processTicketResponse)
-                .withFailureHandler(onFailure)
-                .bookNewQueueTicket(); // This backend function needs to exist
+                .withFailureHandler(onFailure) // onFailure will re-enable the button
+                .bookNewQueueTicket(); // Server-side function in queue_management.gs
         }
 
+        /**
+         * Processes the response from the bookNewQueueTicket server-side function.
+         * Displays ticket information on success or an error message on failure.
+         * @param {object} response Expected: { success: boolean, ticket?: object, message?: string }
+         */
         function processTicketResponse(response) {
-            if (response && response.success) {
+            if (response && response.success && response.ticket) {
                 const ticket = response.ticket;
                 queueNumberDisplay.textContent = ticket.queueNumber || 'N/A';
                 serviceChannelDisplay.textContent = ticket.serviceChannelName || 'General Service';
                 
-                // Format timestamp nicely
+                // Format timestamp for display
                 const date = new Date(ticket.timestampCreated);
-                timestampDisplay.textContent = date.toLocaleString() || 'N/A';
+                timestampDisplay.textContent = date.toLocaleString() || 'N/A'; // User-friendly date/time
 
+                // Show ticket info area and print button, hide get ticket button
                 ticketInfoArea.classList.remove('hidden');
-                printTicketButton.classList.remove('hidden');
+                printTicketButton.classList.remove('hidden'); // Ensure print button is also visible
                 getTicketButton.classList.add('hidden');
                 displayBookingMessage("Your ticket has been booked successfully!", false);
-
-                // Populate printable area - for the preferred print method
-                // The main display elements are already within printableTicket div
-                // So, no need to duplicate if structured correctly.
             } else {
                 displayBookingMessage(response.message || "Failed to book ticket. Please try again.", true);
-                getTicketButton.disabled = false; // Re-enable on failure
+                getTicketButton.disabled = false; // Re-enable button on failure
             }
         }
 
+        /**
+         * Handles the "Print Ticket" button click.
+         * Uses browser's print functionality. Print-specific CSS ensures only the ticket is printed.
+         */
         function handlePrintTicket() {
-            // Option 2: Print specific section (preferred)
-            // The @media print CSS handles showing only #printableTicket
+            // The @media print CSS rules handle showing only the #printableTicket section.
             window.print();
-            // No need to manipulate body.innerHTML with @media print styles
-            // If event listeners break after print (rare with modern browsers), might need:
-            // setTimeout(() => window.location.reload(), 100);
         }
 
+        /**
+         * Navigates back to the dashboard.
+         */
         function goBackToDashboard() {
             navigateTo('dashboard');
         }
 
+        /**
+         * Navigates to a specified page within the web app.
+         * @param {string} pageName The name of the page to navigate to.
+         */
         function navigateTo(pageName) {
             displayBookingMessage(`Navigating to ${pageName.replace('_', ' ')}...`, false);
-            google.script.run.storeCurrentPage(pageName);
+            google.script.run.storeCurrentPage(pageName); // Store target page in session
             google.script.run
                 .withSuccessHandler(function(url) { window.top.location.href = url; })
                 .withFailureHandler(onFailure)
                 .getServedUrl(pageName);
         }
 
+        /**
+         * Generic failure handler for google.script.run calls.
+         * @param {Error} error The error object.
+         */
         function onFailure(error) {
-            console.error('GAS Call Error:', error);
+            console.error('Google Apps Script Call Error:', error);
             displayBookingMessage('An error occurred: ' + error.message, true);
-            getTicketButton.disabled = false; // Re-enable if it was a getTicket call that failed
+            // Re-enable the "Get Ticket" button if it was disabled during a failed attempt.
+            if (getTicketButton.disabled) {
+                getTicketButton.disabled = false;
+            }
         }
 
-        // Event Listeners
-        window.addEventListener('load', initializePage);
+        // Event Listeners Setup
+        window.addEventListener('load', initializePage); // Initialize when page loads
         getTicketButton.addEventListener('click', handleGetTicket);
         printTicketButton.addEventListener('click', handlePrintTicket);
         backToDashboardButton.addEventListener('click', goBackToDashboard);

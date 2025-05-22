@@ -7,8 +7,9 @@
     <!-- Include styles.html if needed -->
 </head>
 <body class="bg-gray-100">
+    <!-- Main Dashboard Container -->
     <div class="container mx-auto p-4">
-        <!-- Header Section -->
+        <!-- Header Section: Welcome Message and Logout Button -->
         <header class="bg-white shadow rounded-lg p-6 mb-6 flex justify-between items-center">
             <div id="welcomeMessage" class="text-xl font-semibold text-gray-700">
                 Welcome!
@@ -17,8 +18,9 @@
                 Logout
             </button>
         </header>
+        <!-- End Header Section -->
 
-        <!-- Navigation Section -->
+        <!-- Navigation Section: Links to different parts of the application -->
         <nav class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
             <button id="bookQueueButton" class="bg-blue-500 hover:bg-blue-700 text-white font-bold py-4 px-6 rounded-lg shadow-md text-lg h-32">
                 Book a Queue Ticket
@@ -33,14 +35,18 @@
                 Settings (Admin)
             </button>
         </nav>
+        <!-- End Navigation Section -->
 
-        <!-- Message Area -->
+        <!-- Message Display Area -->
         <div id="dashboardMessageArea" class="mt-4 text-sm text-center p-3 rounded-md">
-            <!-- Messages will appear here -->
+            <!-- Messages from JavaScript will appear here -->
         </div>
+        <!-- End Message Display Area -->
     </div>
+    <!-- End Main Dashboard Container -->
 
     <script>
+        // DOM Element References
         const welcomeMessage = document.getElementById('welcomeMessage');
         const logoutButton = document.getElementById('logoutButton');
         const bookQueueButton = document.getElementById('bookQueueButton');
@@ -49,99 +55,146 @@
         const settingsButton = document.getElementById('settingsButton');
         const dashboardMessageArea = document.getElementById('dashboardMessageArea');
 
+        /**
+         * Displays a message on the dashboard.
+         * @param {string} message The message text.
+         * @param {boolean} [isError=false] True if it's an error message, for styling.
+         */
         function displayDashboardMessage(message, isError = false) {
             dashboardMessageArea.textContent = message;
             if (isError) {
                 dashboardMessageArea.className = 'mt-4 text-sm text-center p-3 rounded-md bg-red-100 text-red-700';
-            } else {
+            } else { // For info/success messages
                 dashboardMessageArea.className = 'mt-4 text-sm text-center p-3 rounded-md bg-blue-100 text-blue-700';
             }
         }
 
+        /**
+         * Initializes the dashboard on page load.
+         * Checks the user's session and populates user-specific information.
+         */
         function loadDashboard() {
-            displayDashboardMessage("Loading dashboard data...");
+            displayDashboardMessage("Loading dashboard data...", false);
             google.script.run
                 .withSuccessHandler(processSessionDetails)
-                .withFailureHandler(redirectToLogin) // Pass the error to redirectToLogin
-                .checkUserSession();
+                .withFailureHandler(redirectToLogin) // redirectToLogin handles displaying the error
+                .checkUserSession(); // Server-side function
         }
 
+        /**
+         * Processes session details received from the server.
+         * Updates the welcome message and handles role-based UI elements.
+         * @param {object} session The session object from checkUserSession.
+         *                         Expected: { isLoggedIn: boolean, user?: { username: string, email: string, role: string } }
+         */
         function processSessionDetails(session) {
             if (session && session.isLoggedIn) {
                 welcomeMessage.textContent = "Welcome, " + (session.user.username || session.user.email || "User") + "!";
                 displayDashboardMessage("Dashboard loaded successfully.", false);
 
-                // Future: Role-based visibility for admin buttons
-                // Example: if (session.user.role !== 'admin') {
-                //   manageQueuesButton.style.display = 'none';
-                //   settingsButton.style.display = 'none';
+                // TODO: Implement role-based visibility for admin buttons.
+                // This requires the 'admin-only' class to be styled with 'display: none;' by default,
+                // and then selectively shown here.
+                // Example:
+                // if (session.user.role === 'admin') {
+                //   document.querySelectorAll('.admin-only').forEach(el => el.style.display = 'block'); // Or remove a 'hidden' class
                 // }
             } else {
-                // This case should ideally be handled by redirectToLogin if checkUserSession fails
-                redirectToLogin({ message: "Session invalid or not logged in." });
+                // If session is invalid or user is not logged in, redirect to login.
+                redirectToLogin({ message: "Session invalid or not logged in. Please log in again." });
             }
         }
 
+        /**
+         * Redirects the user to the login page.
+         * Displays an error message if provided.
+         * @param {object|null} [error=null] Optional error object or message to display.
+         */
         function redirectToLogin(error) {
-            if (error) {
-                console.error("Session check failed or not logged in:", error);
-                // Display a message to the user before redirecting
-                displayDashboardMessage("Session invalid or expired. Redirecting to login...", true);
+            let message = "Redirecting to login...";
+            if (error && error.message) {
+                message = error.message + " " + message;
+                console.error("Redirecting to login due to:", error);
             }
+            displayDashboardMessage(message, true); // Display as an error
+            
+            // Call server-side getServedUrl to get the login page URL and then redirect.
             google.script.run
                 .withSuccessHandler(function(url) {
-                    window.top.location.href = url;
+                    window.top.location.href = url; // Redirect top-level window
                 })
-                .withFailureHandler(onFailure) // Handle failure to get login URL
+                .withFailureHandler(onFailure) 
                 .getServedUrl('login');
         }
 
+        /**
+         * Handles the logout process.
+         * Calls the server-side logout function.
+         */
         function handleLogout() {
             displayDashboardMessage("Logging out...", false);
             google.script.run
                 .withSuccessHandler(processLogoutResponse)
                 .withFailureHandler(onFailure)
-                .logout();
+                .logout(); // Server-side function
         }
 
+        /**
+         * Processes the response from the server-side logout function.
+         * Redirects to login on successful logout.
+         * @param {object} response Expected: { success: boolean, message?: string }
+         */
         function processLogoutResponse(response) {
             if (response && response.success) {
                 displayDashboardMessage("Logged out successfully. Redirecting to login...", false);
-                redirectToLogin(); // No error object needed here
+                redirectToLogin(); // Redirect without an error object
             } else {
-                displayDashboardMessage(response.message || "Logout failed. Please try again.", true);
+                // Display error message if logout failed.
+                displayDashboardMessage(response.message || "Logout failed. Please try again or close the window.", true);
             }
         }
 
+        /**
+         * Navigates to a specified page within the web app.
+         * Stores the target page in session and then redirects.
+         * @param {string} pageName The name of the page to navigate to (e.g., 'queue_booking').
+         */
         function navigateTo(pageName) {
             displayDashboardMessage(`Navigating to ${pageName.replace('_', ' ')}...`, false);
-            google.script.run.storeCurrentPage(pageName);
+            google.script.run.storeCurrentPage(pageName); // Store current page for potential session recovery
             google.script.run
                 .withSuccessHandler(function(url) {
-                    // For 'display_screen', consider opening in a new tab
+                    // Special handling for 'display_screen' to open in a new tab.
                     if (pageName === 'display_screen') {
                         window.open(url, '_blank');
-                        displayDashboardMessage("Display screen should open in a new tab.", false);
+                        displayDashboardMessage("Display screen should open in a new tab. Navigation to other pages continues in this window.", false);
                     } else {
-                        window.top.location.href = url;
+                        window.top.location.href = url; // Navigate in the current window
                     }
                 })
                 .withFailureHandler(onFailure)
-                .getServedUrl(pageName);
+                .getServedUrl(pageName); // Get URL for the target page
         }
 
+        /**
+         * Generic failure handler for google.script.run calls.
+         * @param {Error} error The error object.
+         */
         function onFailure(error) {
-            console.error('GAS Call Error:', error);
+            console.error('Google Apps Script Call Error:', error);
             displayDashboardMessage('An error occurred: ' + error.message, true);
         }
 
-        // Event Listeners
-        window.addEventListener('load', loadDashboard);
+        // Event Listeners Setup
+        window.addEventListener('load', loadDashboard); // Load dashboard data when the page is fully loaded.
         logoutButton.addEventListener('click', handleLogout);
 
+        // Navigation button event listeners
         bookQueueButton.addEventListener('click', function() { navigateTo('queue_booking'); });
-        manageQueuesButton.addEventListener('click', function() { navigateTo('admin_panel'); }); // admin_panel for actual admin functions
+        // 'manageQueuesButton' is intended for admin users. The 'admin_panel' page handles its own role check.
+        manageQueuesButton.addEventListener('click', function() { navigateTo('admin_panel'); }); 
         viewDisplayButton.addEventListener('click', function() { navigateTo('display_screen'); });
+        // 'settingsButton' is also for admin users. 'settings' page handles its own role check.
         settingsButton.addEventListener('click', function() { navigateTo('settings'); });
 
     </script>

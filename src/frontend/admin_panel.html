@@ -18,35 +18,48 @@
     </style>
 </head>
 <body class="bg-gray-100 min-h-screen">
+    <!-- Main Admin Panel Container -->
     <div class="container mx-auto p-4">
+        <!-- Header Section -->
         <header class="bg-white shadow rounded-lg p-6 mb-6 flex justify-between items-center">
             <h1 class="text-xl md:text-2xl font-bold text-gray-800">Admin Queue Management</h1>
             <button id="backToDashboardButton" class="bg-gray-500 hover:bg-gray-700 text-white font-bold py-2 px-4 rounded focus:outline-none focus:shadow-outline">
                 Back to Dashboard
             </button>
         </header>
+        <!-- End Header Section -->
 
-        <div id="adminMessageArea" class="mb-4 text-sm text-center p-3 rounded-md"></div>
+        <!-- Message Display Area -->
+        <div id="adminMessageArea" class="mb-4 text-sm text-center p-3 rounded-md">
+            <!-- Admin messages from JavaScript will appear here -->
+        </div>
+        <!-- End Message Display Area -->
 
-        <!-- Service Channel Selection -->
+        <!-- Service Channel Selection Section -->
         <section class="mb-6 p-4 bg-white rounded-lg shadow">
             <h2 class="text-lg font-semibold text-gray-700 mb-3">Select Service Channel:</h2>
             <div id="serviceChannelsArea" class="flex flex-wrap gap-2">
-                <!-- Channel buttons will be populated here -->
+                <!-- Channel buttons will be populated by JavaScript -->
             </div>
             <div id="selectedChannelDisplay" class="mt-3 text-sm text-gray-600">No channel selected.</div>
         </section>
+        <!-- End Service Channel Selection Section -->
 
+        <!-- Main Content Grid (Actions, Currently Calling, Waiting, History) -->
         <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
-            <!-- Left Column: Actions & Currently Calling -->
+            
+            <!-- Left Column: Channel Actions & Currently Calling Queue -->
             <div class="md:col-span-1 space-y-6">
+                <!-- Channel Actions Section -->
                 <section class="p-4 bg-white rounded-lg shadow">
                     <h2 class="text-lg font-semibold text-gray-700 mb-3">Channel Actions</h2>
                     <button id="callNextButton" class="w-full bg-green-500 hover:bg-green-700 text-white font-bold py-3 px-4 rounded-lg shadow-md disabled:opacity-50" disabled>
                         Call Next Waiting
                     </button>
                 </section>
+                <!-- End Channel Actions Section -->
 
+                <!-- Currently Calling Section -->
                 <section id="currentlyCallingSection" class="p-4 bg-white rounded-lg shadow">
                     <h2 class="text-lg font-semibold text-gray-700 mb-3">Currently Calling</h2>
                     <div id="currentQueueNumber" class="text-3xl font-bold text-indigo-600 text-center mb-3 p-3 border-2 border-indigo-500 rounded-lg bg-indigo-50">
@@ -59,341 +72,492 @@
                         <button id="skipCurrentButton" class="w-full bg-yellow-500 hover:bg-yellow-700 text-white font-bold py-2 px-4 rounded disabled:opacity-50" disabled>Skip</button>
                     </div>
                 </section>
+                <!-- End Currently Calling Section -->
             </div>
+            <!-- End Left Column -->
 
-            <!-- Middle Column: Waiting Queues -->
+            <!-- Middle Column: Waiting Queues List -->
             <div class="md:col-span-1 p-4 bg-white rounded-lg shadow">
                 <h2 class="text-lg font-semibold text-gray-700 mb-3">Waiting Queues (<span id="waitingCount">0</span>)</h2>
                 <div id="waitingQueuesList" class="space-y-2 overflow-y-auto max-h-96">
-                    <!-- Waiting queue items will be populated here -->
+                    <!-- Waiting queue items will be populated by JavaScript -->
                     <p class="text-gray-500">No waiting queues.</p>
                 </div>
             </div>
+            <!-- End Middle Column -->
 
-            <!-- Right Column: History -->
+            <!-- Right Column: Recently Processed (History) List -->
             <div class="md:col-span-1 p-4 bg-white rounded-lg shadow">
                 <h2 class="text-lg font-semibold text-gray-700 mb-3">Recently Processed (<span id="historyCount">0</span>)</h2>
                 <div id="historyQueuesList" class="space-y-2 overflow-y-auto max-h-96">
-                    <!-- History queue items will be populated here -->
+                    <!-- History queue items will be populated by JavaScript -->
                     <p class="text-gray-500">No recent history.</p>
                 </div>
             </div>
+            <!-- End Right Column -->
+        </div>
+        <!-- End Main Content Grid -->
+    </div>
+    <!-- End Main Admin Panel Container -->
+
+    <!-- Edit Channel Modal (This modal is not used in the current version of admin_panel.html but kept for potential future use) -->
+    <div id="editChannelModal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-75 overflow-y-auto h-full w-full z-50 modal">
+        <div class="relative top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 p-5 border w-full max-w-md shadow-lg rounded-md bg-white">
+            <!-- Modal Header -->
+            <div class="flex justify-between items-center mb-3">
+                <h3 class="text-lg font-medium text-gray-900">Edit Service Channel</h3>
+                <button id="closeEditModalButton" class="text-gray-400 hover:text-gray-600">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path></svg>
+                </button>
+            </div>
+            <!-- End Modal Header -->
+            <!-- Modal Body: Edit Channel Form -->
+            <form id="editChannelFormModal">
+                <input type="hidden" id="editChannelId"> <!-- Hidden input to store channel ID being edited -->
+                <div class="mb-4">
+                    <label for="editChannelName" class="block text-sm font-medium text-gray-700">Channel Name</label>
+                    <input type="text" id="editChannelName" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" required>
+                </div>
+                <div class="mb-4">
+                    <label for="editChannelCode" class="block text-sm font-medium text-gray-700">Channel Code</label>
+                    <input type="text" id="editChannelCode" maxlength="3" class="mt-1 block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm" required>
+                </div>
+                <div class="mb-4">
+                    <label for="editChannelIsEnabled" class="flex items-center text-sm font-medium text-gray-700">
+                        <input type="checkbox" id="editChannelIsEnabled" class="h-4 w-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500 mr-2">
+                        Enabled
+                    </label>
+                </div>
+                <div class="flex justify-end space-x-2">
+                    <button id="cancelEditChannelButton" type="button" class="bg-gray-300 hover:bg-gray-400 text-gray-800 font-bold py-2 px-4 rounded">Cancel</button>
+                    <button id="saveEditChannelButton" type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white font-bold py-2 px-4 rounded">Save Changes</button>
+                </div>
+            </form>
+            <!-- End Modal Body -->
         </div>
     </div>
+    <!-- End Edit Channel Modal -->
+
 
     <script>
-        // Global state
-        let selectedChannelId = null;
-        let selectedChannelName = null;
-        let currentCallingQueue = null;
-        let activePollingInterval = null;
-        const POLLING_INTERVAL_MS = 10000; // 10 seconds
+        // --- Global State Variables ---
+        let selectedChannelId = null;   // ID of the currently selected service channel
+        let selectedChannelName = null; // Name of the currently selected service channel
+        let currentCallingQueue = null;     // Object representing the queue currently being called
+        let activePollingInterval = null;   // Interval ID for data polling
+        const POLLING_INTERVAL_MS = 10000;  // Data refresh interval (10 seconds)
 
-        // DOM Elements
+        // --- DOM Element References ---
         const adminMessageArea = document.getElementById('adminMessageArea');
-        const serviceChannelsArea = document.getElementById('serviceChannelsArea');
+        const serviceChannelsArea = document.getElementById('serviceChannelsArea'); // Area to display channel selection buttons
         const selectedChannelDisplay = document.getElementById('selectedChannelDisplay');
         const callNextButton = document.getElementById('callNextButton');
+        // Currently Calling Section elements
         const currentlyCallingSection = document.getElementById('currentlyCallingSection');
         const currentQueueNumber = document.getElementById('currentQueueNumber');
         const currentServiceChannel = document.getElementById('currentServiceChannel');
         const recallCurrentButton = document.getElementById('recallCurrentButton');
         const markCompletedButton = document.getElementById('markCompletedButton');
         const skipCurrentButton = document.getElementById('skipCurrentButton');
-        const waitingQueuesList = document.getElementById('waitingQueuesList');
-        const historyQueuesList = document.getElementById('historyQueuesList');
+        // Queue Lists elements
+        const waitingQueuesList = document.getElementById('waitingQueuesList'); // UL for waiting queues
+        const historyQueuesList = document.getElementById('historyQueuesList');   // UL for history queues
         const backToDashboardButton = document.getElementById('backToDashboardButton');
-        const waitingCountEl = document.getElementById('waitingCount');
-        const historyCountEl = document.getElementById('historyCount');
+        const waitingCountEl = document.getElementById('waitingCount'); // Span for waiting count
+        const historyCountEl = document.getElementById('historyCount');   // Span for history count
+        // Note: Edit Channel Modal elements are not used in this version but kept for potential future use.
 
+        // --- Utility Functions ---
+
+        /**
+         * Displays a message in the admin panel's main message area.
+         * @param {string} message The message to display.
+         * @param {boolean} [isError=false] True if the message is an error, for styling.
+         */
         function displayAdminMessage(message, isError = false) {
             adminMessageArea.textContent = message;
-            adminMessageArea.className = isError ? 'mb-4 text-sm text-center p-3 rounded-md bg-red-100 text-red-700' : 'mb-4 text-sm text-center p-3 rounded-md bg-blue-100 text-blue-700';
-            if (!message) adminMessageArea.className = 'mb-4 text-sm text-center p-3 rounded-md';
+            if (isError) {
+                adminMessageArea.className = 'mb-4 text-sm text-center p-3 rounded-md bg-red-100 text-red-700';
+            } else if (!message) { // Reset class if message is empty
+                 adminMessageArea.className = 'mb-4 text-sm text-center p-3 rounded-md';
+            } else { // Info/success
+                adminMessageArea.className = 'mb-4 text-sm text-center p-3 rounded-md bg-blue-100 text-blue-700';
+            }
         }
 
+        // --- Initialization and Session Management ---
+
+        /**
+         * Initializes the admin panel on page load.
+         * Checks user session and admin role before loading data.
+         */
         function initializeAdminPanel() {
             displayAdminMessage("Initializing admin panel...", false);
             google.script.run
                 .withSuccessHandler(processAdminSession)
-                .withFailureHandler(redirectToLogin) // redirectToLogin handles the error message
-                .checkUserSession();
+                .withFailureHandler(redirectToLogin) // redirectToLogin handles error display
+                .checkUserSession(); // Server-side function from auth.gs
         }
 
+        /**
+         * Processes the session details from the server.
+         * Validates if the user is an admin; if not, redirects to dashboard.
+         * If admin, proceeds to load service channels.
+         * @param {object} session Expected: { isLoggedIn: boolean, user?: { role: string } }
+         */
         function processAdminSession(session) {
             if (!session || !session.isLoggedIn) {
-                redirectToLogin({ message: "Session invalid or not logged in." });
+                redirectToLogin({ message: "Session invalid or not logged in. Please log in." });
                 return;
             }
             if (session.user.role !== 'admin') {
                 displayAdminMessage("Unauthorized access. Admin role required. Redirecting to dashboard...", true);
-                setTimeout(() => navigateTo('dashboard'), 2000);
+                setTimeout(() => navigateTo('dashboard'), 3000); // Redirect after 3 seconds
                 return;
             }
             displayAdminMessage("Admin user validated. Loading service channels...", false);
-            loadServiceChannels();
+            loadServiceChannels(); // Proceed to load channels and then data
         }
 
+        // --- Service Channel Management ---
+
+        /**
+         * Loads active service channels from the server and populates the channel selection buttons.
+         */
         function loadServiceChannels() {
             google.script.run
                 .withSuccessHandler(processServiceChannels)
                 .withFailureHandler(onFailure)
-                .getActiveServiceChannelsForClient(); // Wrapper in queue_management.gs
+                .getActiveServiceChannelsForClient(); // Server-side function from queue_management.gs
         }
 
+        /**
+         * Populates the channel selection area with buttons for each active service channel.
+         * Auto-selects the first channel by default.
+         * @param {object} response Expected: { success: boolean, channels?: Array<object>, message?: string }
+         */
         function processServiceChannels(response) {
             if (!response.success || !response.channels) {
                 displayAdminMessage(response.message || "Failed to load service channels.", true);
                 return;
             }
-            serviceChannelsArea.innerHTML = ''; // Clear existing
+            serviceChannelsArea.innerHTML = ''; // Clear previous buttons
             if (response.channels.length === 0) {
-                displayAdminMessage("No active service channels found.", true);
+                displayAdminMessage("No active service channels found. Please configure channels in settings.", true);
                 selectedChannelDisplay.textContent = "No active channels available.";
+                callNextButton.disabled = true; // Disable call next if no channels
                 return;
             }
+            // Create a button for each channel
             response.channels.forEach(channel => {
                 const button = document.createElement('button');
                 button.textContent = channel.ChannelName;
                 button.dataset.channelId = channel.ServiceChannelID;
-                button.dataset.channelName = channel.ChannelName; // Store name
+                button.dataset.channelName = channel.ChannelName; 
                 button.className = 'channel-button p-2 border rounded-md text-sm hover:bg-indigo-100 transition';
                 button.addEventListener('click', () => selectChannel(channel.ServiceChannelID, channel.ChannelName));
                 serviceChannelsArea.appendChild(button);
             });
-            // Auto-select the first channel
-            selectChannel(response.channels[0].ServiceChannelID, response.channels[0].ChannelName);
+            // Automatically select the first channel in the list.
+            if (response.channels.length > 0) {
+                selectChannel(response.channels[0].ServiceChannelID, response.channels[0].ChannelName);
+            }
         }
 
+        /**
+         * Handles the selection of a service channel.
+         * Updates UI, fetches data for the selected channel, and starts/restarts polling.
+         * @param {string} channelId The ID of the selected service channel.
+         * @param {string} channelName The name of the selected service channel.
+         */
         function selectChannel(channelId, channelName) {
-            if (activePollingInterval) clearInterval(activePollingInterval);
+            if (activePollingInterval) clearInterval(activePollingInterval); // Stop previous polling
 
             selectedChannelId = channelId;
-            selectedChannelName = channelName; // Store the name
+            selectedChannelName = channelName; 
 
             selectedChannelDisplay.textContent = `Selected Channel: ${channelName}`;
-            callNextButton.disabled = false;
+            callNextButton.disabled = false; // Enable "Call Next" button for the selected channel
 
-            // Update button styles
+            // Highlight the selected channel button
             document.querySelectorAll('.channel-button').forEach(btn => {
-                if (btn.dataset.channelId === channelId) {
-                    btn.classList.add('selected');
-                } else {
-                    btn.classList.remove('selected');
-                }
+                btn.classList.toggle('selected', btn.dataset.channelId === channelId);
             });
 
-            // Clear current displays and fetch new data
-            updateCurrentlyCallingDisplay(null); // Clear current calling section
-            waitingQueuesList.innerHTML = '<p class="text-gray-500">Loading...</p>';
-            historyQueuesList.innerHTML = '<p class="text-gray-500">Loading...</p>';
+            // Clear current displays and fetch new data for the selected channel
+            updateCurrentlyCallingDisplay(null); // Clear the "Currently Calling" section
+            waitingQueuesList.innerHTML = '<p class="text-gray-500">Loading waiting queues...</p>';
+            historyQueuesList.innerHTML = '<p class="text-gray-500">Loading history...</p>';
             waitingCountEl.textContent = '0';
             historyCountEl.textContent = '0';
             
-            fetchChannelData(); // Initial fetch
-            activePollingInterval = setInterval(fetchChannelData, POLLING_INTERVAL_MS);
-            displayAdminMessage(`Channel ${channelName} selected.`, false);
+            fetchChannelData(); // Fetch data immediately for the new channel
+            activePollingInterval = setInterval(fetchChannelData, POLLING_INTERVAL_MS); // Start polling
+            displayAdminMessage(`Channel '${channelName}' selected. Data will refresh automatically.`, false);
         }
 
-        function fetchChannelData() {
-            if (!selectedChannelId) return;
+        // --- Data Fetching and UI Updates ---
 
-            // Fetch currently calling (expect 0 or 1)
+        /**
+         * Fetches all relevant queue data for the currently selected service channel.
+         * This includes currently calling, waiting, and history queues.
+         */
+        function fetchChannelData() {
+            if (!selectedChannelId) return; // Do nothing if no channel is selected
+
+            // Fetch the queue currently being called (if any) for the selected channel.
+            // Expecting 0 or 1 queue in "calling" state per channel.
             google.script.run
                 .withSuccessHandler(response => {
-                    if (response.success && response.queues && response.queues.length > 0) {
-                        updateCurrentlyCallingDisplay(response.queues[0]);
-                    } else if (response.success && response.queues && response.queues.length === 0) {
-                         updateCurrentlyCallingDisplay(null); // No one is calling
+                    if (response.success && response.queues) {
+                        updateCurrentlyCallingDisplay(response.queues[0] || null); // Pass the first queue or null
                     } else if (!response.success) {
-                        displayAdminMessage(response.message || "Error fetching current queue.", true);
+                        displayAdminMessage(response.message || "Error fetching current calling queue.", true);
                     }
                 })
                 .withFailureHandler(onFailure)
                 .getQueuesForAdminView(selectedChannelId, ["calling"], 1, 'TimestampCalled', false);
 
-            // Fetch waiting list
+            // Fetch the list of waiting queues for the selected channel.
             google.script.run
                 .withSuccessHandler(response => {
                     if (response.success && response.queues) {
-                        updateQueuesList('waitingQueuesList', response.queues, false);
+                        updateQueuesList('waitingQueuesList', response.queues, false); // 'false' for not including recall button
                         waitingCountEl.textContent = response.queues.length;
                     } else if (!response.success) {
                         displayAdminMessage(response.message || "Error fetching waiting queues.", true);
                     }
                 })
                 .withFailureHandler(onFailure)
-                .getQueuesForAdminView(selectedChannelId, ["waiting"], 10, 'TimestampCreated', true);
+                .getQueuesForAdminView(selectedChannelId, ["waiting"], 20, 'TimestampCreated', true); // Show more waiting, oldest first
 
-            // Fetch history list
+            // Fetch the list of recently processed queues (completed or skipped) for the selected channel.
             google.script.run
                 .withSuccessHandler(response => {
                     if (response.success && response.queues) {
-                        updateQueuesList('historyQueuesList', response.queues, true); // Include recall for history
+                        updateQueuesList('historyQueuesList', response.queues, true); // 'true' to include recall button for history items
                         historyCountEl.textContent = response.queues.length;
                     } else if (!response.success) {
                         displayAdminMessage(response.message || "Error fetching history queues.", true);
                     }
                 })
                 .withFailureHandler(onFailure)
-                .getQueuesForAdminView(selectedChannelId, ["completed", "skipped"], 10, 'TimestampCalled', false);
+                .getQueuesForAdminView(selectedChannelId, ["completed", "skipped"], 10, 'TimestampCalled', false); // Most recent first
         }
 
+        /**
+         * Updates the "Currently Calling" section of the UI.
+         * @param {object|null} queue The queue object that is currently calling, or null if none.
+         */
         function updateCurrentlyCallingDisplay(queue) {
-            currentCallingQueue = queue;
+            currentCallingQueue = queue; // Update global state
             if (queue) {
                 currentQueueNumber.textContent = queue.QueueNumber || 'N/A';
-                currentServiceChannel.textContent = `Channel: ${selectedChannelName || queue.ServiceChannelID}`;
+                currentServiceChannel.textContent = `Channel: ${selectedChannelName || queue.ServiceChannelID}`; // Use stored selectedChannelName
+                // Enable action buttons for the currently calling queue
                 recallCurrentButton.disabled = false;
                 markCompletedButton.disabled = false;
                 skipCurrentButton.disabled = false;
             } else {
                 currentQueueNumber.textContent = '- Nothing -';
                 currentServiceChannel.textContent = `Channel: ${selectedChannelName || '---'}`;
+                // Disable action buttons if no queue is calling
                 recallCurrentButton.disabled = true;
                 markCompletedButton.disabled = true;
                 skipCurrentButton.disabled = true;
             }
         }
 
+        /**
+         * Renders a list of queues (waiting or history) in the specified list element.
+         * @param {string} listElementId The ID of the HTML element to populate (e.g., 'waitingQueuesList').
+         * @param {Array<object>} queues An array of queue objects.
+         * @param {boolean} includeRecallButton True to include a "Recall" button for each item (used for history).
+         */
         function updateQueuesList(listElementId, queues, includeRecallButton) {
             const listElement = document.getElementById(listElementId);
-            listElement.innerHTML = ''; // Clear current list
+            listElement.innerHTML = ''; // Clear previous items
 
             if (!queues || queues.length === 0) {
                 const p = document.createElement('p');
                 p.className = 'text-gray-500';
-                p.textContent = listElementId === 'waitingQueuesList' ? 'No waiting queues.' : 'No recent history.';
+                p.textContent = listElementId === 'waitingQueuesList' ? 'No waiting queues for this channel.' : 'No recent history for this channel.';
                 listElement.appendChild(p);
                 return;
             }
 
+            // Create and append an item for each queue
             queues.forEach(queue => {
                 const item = document.createElement('div');
                 item.className = 'queue-item p-3 border rounded-md bg-white flex justify-between items-center';
                 
                 const info = document.createElement('div');
-                info.innerHTML = `<span class="font-semibold text-indigo-700">${queue.QueueNumber}</span> <span class="text-xs text-gray-500">(${queue.Status})</span><br><span class="text-xs text-gray-500">${new Date(queue.TimestampCreated).toLocaleTimeString()}</span>`;
+                // Display queue number, status, and creation time
+                info.innerHTML = `<span class="font-semibold text-indigo-700">${queue.QueueNumber}</span> <span class="text-xs text-gray-500">(${queue.Status})</span><br><span class="text-xs text-gray-500">Issued: ${new Date(queue.TimestampCreated).toLocaleTimeString()}</span>`;
                 item.appendChild(info);
 
+                // Add a "Recall" button for history items if specified
                 if (includeRecallButton && (queue.Status === 'skipped' || queue.Status === 'completed')) {
                     const recallBtn = document.createElement('button');
                     recallBtn.textContent = 'Recall';
                     recallBtn.className = 'bg-blue-400 hover:bg-blue-600 text-white text-xs font-bold py-1 px-2 rounded';
-                    recallBtn.onclick = () => handleRecallSpecific(queue.QueueID);
+                    recallBtn.onclick = () => handleRecallSpecific(queue.QueueID); // Attach specific recall handler
                     item.appendChild(recallBtn);
                 }
                 listElement.appendChild(item);
             });
         }
 
+        // --- Action Handlers (Calling, Recalling, Completing, Skipping) ---
+
+        /**
+         * Processes the response from server-side queue action functions.
+         * Displays a success or error message and refreshes channel data on success.
+         * @param {object} response Expected: { success: boolean, message?: string, calledQueue?: object, ... }
+         */
         function processActionResponse(response) {
             if (response.success) {
-                let message = "Action successful.";
+                let message = response.message || "Action successful."; // Use server message or a generic one
+                // Optionally, specify message based on action type if server doesn't provide detailed one
                 if (response.calledQueue) message = `Called: ${response.calledQueue.QueueNumber}`;
-                if (response.recalledQueue) message = `Recalled: ${response.recalledQueue.QueueNumber}`;
-                if (response.skippedQueue) message = `Skipped: ${response.skippedQueue.QueueNumber}`;
-                if (response.completedQueue) message = `Completed: ${response.completedQueue.QueueNumber}`;
+                else if (response.recalledQueue) message = `Recalled: ${response.recalledQueue.QueueNumber}`;
+                else if (response.skippedQueue) message = `Skipped: ${response.skippedQueue.QueueNumber}`;
+                else if (response.completedQueue) message = `Completed: ${response.completedQueue.QueueNumber}`;
+                
                 displayAdminMessage(message, false);
-                fetchChannelData(); // Refresh data immediately
+                fetchChannelData(); // Refresh data for the current channel immediately after action
             } else {
-                displayAdminMessage(response.message || "Action failed.", true);
+                displayAdminMessage(response.message || "Action failed. Please try again.", true);
             }
         }
         
+        /**
+         * Handles the "Call Next Waiting" button click.
+         * Calls the server-side function to call the next queue for the selected channel.
+         */
         function handleCallNext() {
             if (!selectedChannelId) {
                 displayAdminMessage("Please select a service channel first.", true);
                 return;
             }
-            displayAdminMessage("Calling next queue...", false);
+            displayAdminMessage(`Calling next queue for ${selectedChannelName}...`, false);
             google.script.run
                 .withSuccessHandler(processActionResponse)
                 .withFailureHandler(onFailure)
-                .callNextQueue(selectedChannelId);
+                .callNextQueue(selectedChannelId); // Server-side function
         }
 
+        /**
+         * Handles recalling the currently displayed "calling" queue.
+         */
         function handleRecallCurrent() {
             if (!currentCallingQueue || !currentCallingQueue.QueueID) {
-                displayAdminMessage("No queue is currently selected to recall.", true);
+                displayAdminMessage("No queue is currently selected/calling to recall.", true);
                 return;
             }
             displayAdminMessage(`Recalling queue ${currentCallingQueue.QueueNumber}...`, false);
             google.script.run
                 .withSuccessHandler(processActionResponse)
                 .withFailureHandler(onFailure)
-                .recallQueue(currentCallingQueue.QueueID);
+                .recallQueue(currentCallingQueue.QueueID); // Server-side function
         }
         
+        /**
+         * Handles recalling a specific queue (e.g., from the history list).
+         * @param {string} queueId The ID of the queue to recall.
+         */
         function handleRecallSpecific(queueId) {
             if (!queueId) {
-                displayAdminMessage("Invalid Queue ID for recall.", true);
+                displayAdminMessage("Invalid Queue ID for recall operation.", true);
                 return;
             }
-            displayAdminMessage(`Recalling specific queue...`, false);
+            displayAdminMessage(`Recalling specific queue ID ${queueId}...`, false);
             google.script.run
                 .withSuccessHandler(processActionResponse)
                 .withFailureHandler(onFailure)
-                .recallQueue(queueId);
+                .recallQueue(queueId); // Server-side function
         }
 
+        /**
+         * Handles marking the currently "calling" queue as completed.
+         */
         function handleMarkCompleted() {
             if (!currentCallingQueue || !currentCallingQueue.QueueID) {
-                displayAdminMessage("No queue is currently selected to mark as completed.", true);
+                displayAdminMessage("No queue is currently selected/calling to mark as completed.", true);
                 return;
             }
-            displayAdminMessage(`Marking ${currentCallingQueue.QueueNumber} as completed...`, false);
+            displayAdminMessage(`Marking queue ${currentCallingQueue.QueueNumber} as completed...`, false);
             google.script.run
                 .withSuccessHandler(processActionResponse)
                 .withFailureHandler(onFailure)
-                .markQueueAsCompleted(currentCallingQueue.QueueID);
+                .markQueueAsCompleted(currentCallingQueue.QueueID); // Server-side function
         }
 
+        /**
+         * Handles skipping the currently "calling" queue.
+         */
         function handleSkipCurrent() {
             if (!currentCallingQueue || !currentCallingQueue.QueueID) {
-                displayAdminMessage("No queue is currently selected to skip.", true);
+                displayAdminMessage("No queue is currently selected/calling to skip.", true);
                 return;
             }
             displayAdminMessage(`Skipping queue ${currentCallingQueue.QueueNumber}...`, false);
             google.script.run
                 .withSuccessHandler(processActionResponse)
                 .withFailureHandler(onFailure)
-                .skipQueue(currentCallingQueue.QueueID);
+                .skipQueue(currentCallingQueue.QueueID); // Server-side function
         }
 
+        // --- Navigation and Error Handling ---
+
+        /**
+         * Redirects to the login page, displaying an optional error message.
+         * @param {object|null} [error=null] Optional error object.
+         */
         function redirectToLogin(error) {
             let message = "Redirecting to login...";
             if (error && error.message) message = error.message + " " + message;
             displayAdminMessage(message, true);
             google.script.run
                 .withSuccessHandler(url => { window.top.location.href = url; })
-                .withFailureHandler(mf => displayAdminMessage("Critical: Could not get login page URL.", true))
+                .withFailureHandler(mf => displayAdminMessage("Critical error: Could not retrieve login page URL.", true))
                 .getServedUrl('login');
         }
 
+        /**
+         * Navigates to a specified page.
+         * @param {string} pageName The name of the page (e.g., 'dashboard').
+         */
         function navigateTo(pageName) {
             displayAdminMessage(`Navigating to ${pageName}...`, false);
-            google.script.run.storeCurrentPage(pageName);
+            if (activePollingInterval) clearInterval(activePollingInterval); // Stop polling when navigating away
+            google.script.run.storeCurrentPage(pageName); // Store target page
             google.script.run
                 .withSuccessHandler(url => { window.top.location.href = url; })
                 .withFailureHandler(onFailure)
                 .getServedUrl(pageName);
         }
 
+        /**
+         * Generic failure handler for `google.script.run` calls.
+         * @param {Error} error The error object.
+         */
         function onFailure(error) {
-            console.error('GAS Call Error:', error);
-            displayAdminMessage('An error occurred: ' + error.message, true);
+            console.error('Google Apps Script Call Error:', error);
+            displayAdminMessage('An error occurred with a server operation: ' + error.message, true);
         }
 
-        // Event Listeners
-        window.addEventListener('load', initializeAdminPanel);
+        // --- Event Listeners Setup ---
+        window.addEventListener('load', initializeAdminPanel); // Initialize panel on page load
         backToDashboardButton.addEventListener('click', () => navigateTo('dashboard'));
+        
+        // Action button listeners
         callNextButton.addEventListener('click', handleCallNext);
         recallCurrentButton.addEventListener('click', handleRecallCurrent);
         markCompletedButton.addEventListener('click', handleMarkCompleted);
         skipCurrentButton.addEventListener('click', handleSkipCurrent);
 
-        // Cleanup polling on page unload
+        // Cleanup polling interval when the page is about to be unloaded.
         window.addEventListener('beforeunload', () => {
             if (activePollingInterval) clearInterval(activePollingInterval);
         });

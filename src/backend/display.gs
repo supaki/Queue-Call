@@ -1,96 +1,120 @@
-// Functions for the public display screen
+// Functions dedicated to providing data for the public display screen.
 
 /**
- * Gets currently calling and a short list of waiting queues for all active channels.
+ * Retrieves currently "calling" queues and a short list of "waiting" queues across all active service channels.
+ * This function is designed to be called by the public display screen frontend to populate its view.
  *
- * @return {object} An object like:
- *   {
- *     success: true,
- *     data: {
- *       calling: [{ queueNumber: 'A101', channelName: 'Counter 1', serviceChannelId: 'SC01', queueId: 'uuid' }, ...],
- *       waiting: [{ queueNumber: 'A102', channelName: 'Counter 1', serviceChannelId: 'SC01', queueId: 'uuid' }, ...]
- *     }
- *   }
- *   or { success: false, message: "Error message" }
+ * @return {object} An object with a `success` status and a `data` payload.
+ *   The `data` payload contains two arrays:
+ *   - `calling`: An array of objects, each representing a queue currently being called.
+ *                Includes `queueId`, `queueNumber`, `channelName`, `serviceChannelId`, `timestampCalled`.
+ *                Sorted by `timestampCalled` descending (most recent first).
+ *   - `waiting`: An array of objects, each representing a queue that is waiting.
+ *                Includes `queueId`, `queueNumber`, `channelName`, `serviceChannelId`, `timestampCreated`.
+ *                Limited to the top 5 oldest waiting queues overall.
+ *   If an error occurs, returns { success: false, message: "Error message" }.
+ *   If no active channels, returns { success: true, data: { calling: [], waiting: [] } }.
  */
 function getCurrentlyCallingAndWaitingQueuesForAllChannels() {
   try {
+    // Fetch all active service channels to know which ones to consider.
     const activeChannels = getActiveServiceChannels(); // from database.gs
     if (!activeChannels || activeChannels.length === 0) {
-      return { success: true, data: { calling: [], waiting: [] } }; // No active channels, return empty data
+      Logger.log("getCurrentlyCallingAndWaitingQueuesForAllChannels: No active service channels found.");
+      return { success: true, data: { calling: [], waiting: [] } }; // No active channels, return empty valid data structure
     }
 
-    let allCallingQueues = [];
-    let allWaitingQueues = [];
+    let processedCallingQueues = [];
+    let processedWaitingQueues = [];
 
-    // Fetch calling queues for all active channels
-    const callingQueues = fetchQueues(null, ["calling"], 10, "TimestampCalled", false); // Fetch top 10 calling, sorted by time called
+    // Fetch all queues currently in the "calling" state across all channels.
+    // Limit to 10 as a reasonable number for display, sorted by when they were called.
+    const callingQueuesFromDb = fetchQueues(null, ["calling"], 10, "TimestampCalled", false); 
     
-    // Process calling queues to include channel names
-    callingQueues.forEach(queue => {
+    // Enrich calling queues with their respective channel names.
+    callingQueuesFromDb.forEach(queue => {
       const channel = getServiceChannelById(queue.ServiceChannelID); // from database.gs
-      if (channel) {
-        allCallingQueues.push({
+      if (channel) { // Ensure channel data is found
+        processedCallingQueues.push({
           queueId: queue.QueueID,
           queueNumber: queue.QueueNumber,
           channelName: channel.ChannelName,
           serviceChannelId: channel.ServiceChannelID,
-          timestampCalled: queue.TimestampCalled // Useful for sorting or display
+          timestampCalled: queue.TimestampCalled // Retain for potential client-side sorting or display logic
         });
+      } else {
+        Logger.log("getCurrentlyCallingAndWaitingQueuesForAllChannels: Channel data not found for ServiceChannelID: " + queue.ServiceChannelID + " for calling queue " + queue.QueueID);
       }
     });
     
-    // Sort calling queues by TimestampCalled (most recent first if not already)
-    allCallingQueues.sort((a, b) => new Date(b.timestampCalled) - new Date(a.timestampCalled));
+    // Ensure calling queues are sorted by TimestampCalled (most recent first),
+    // as fetchQueues might sort differently if multiple sort fields were involved or if sorting failed.
+    // This also handles cases where queues from different channels are fetched and then combined.
+    processedCallingQueues.sort((a, b) => new Date(b.timestampCalled) - new Date(a.timestampCalled));
 
 
-    // Fetch a few waiting queues for all active channels (e.g., top 5 overall, or top N per channel)
-    // For simplicity, let's fetch top 5 waiting queues overall, sorted by creation time
-    const waitingQueues = fetchQueues(null, ["waiting"], 5, "TimestampCreated", true); // Fetch top 5 waiting, oldest first
+    // Fetch a limited number of "waiting" queues.
+    // For simplicity and performance, fetch the top 5 oldest waiting queues overall.
+    const waitingQueuesFromDb = fetchQueues(null, ["waiting"], 5, "TimestampCreated", true); // true for ascending (oldest first)
 
-    waitingQueues.forEach(queue => {
+    // Enrich waiting queues with their channel names.
+    waitingQueuesFromDb.forEach(queue => {
       const channel = getServiceChannelById(queue.ServiceChannelID); // from database.gs
-      if (channel) {
-        allWaitingQueues.push({
+      if (channel) { // Ensure channel data is found
+        processedWaitingQueues.push({
           queueId: queue.QueueID,
           queueNumber: queue.QueueNumber,
           channelName: channel.ChannelName,
           serviceChannelId: channel.ServiceChannelID,
-          timestampCreated: queue.TimestampCreated
+          timestampCreated: queue.TimestampCreated // Retain for potential client-side logic
         });
+      } else {
+         Logger.log("getCurrentlyCallingAndWaitingQueuesForAllChannels: Channel data not found for ServiceChannelID: " + queue.ServiceChannelID + " for waiting queue " + queue.QueueID);
       }
     });
 
-    Logger.log("getCurrentlyCallingAndWaitingQueuesForAllChannels: Found " + allCallingQueues.length + " calling, " + allWaitingQueues.length + " waiting.");
+    Logger.log("getCurrentlyCallingAndWaitingQueuesForAllChannels: Processed " + processedCallingQueues.length + " calling queues and " + processedWaitingQueues.length + " waiting queues.");
 
     return {
       success: true,
       data: {
-        calling: allCallingQueues,
-        waiting: allWaitingQueues
+        calling: processedCallingQueues,
+        waiting: processedWaitingQueues
       }
     };
 
   } catch (e) {
     Logger.log("Error in getCurrentlyCallingAndWaitingQueuesForAllChannels: " + e.message + " Stack: " + e.stack);
-    return { success: false, message: "Error fetching queue data for display: " + e.message };
+    return { success: false, message: "An error occurred while fetching queue data for the display: " + e.message };
   }
 }
 
-// Example Test function
+/**
+ * Example test function to demonstrate `getCurrentlyCallingAndWaitingQueuesForAllChannels`.
+ * This function can be run from the Apps Script editor to test the display data retrieval.
+ * Note: For meaningful test results, ensure there are active service channels and queues
+ * in "calling" and "waiting" states in your spreadsheet.
+ */
 function testGetCurrentlyCallingAndWaiting() {
-  // Ensure some queues are in "calling" and "waiting" states for testing
-  // You might need to manually set these in your sheet or use other functions to create them
-  // Also ensure you have active service channels in "ServiceChannels" sheet
+  // Setup: Ensure some test data exists.
+  // 1. Make sure 'ServiceChannels' sheet has active channels (e.g., SC01, SC02 from addTestData).
+  // 2. Book some tickets for these channels using `bookNewQueueTicket("SC01")`, etc.
+  // 3. Call some of these tickets using `callNextQueue("SC01")` or `recallQueue("...")`.
   
-  // Example: Manually book and call some tickets via admin panel or other test functions first
-  // bookNewQueueTicket("SC01"); // Book one for SC01
-  // bookNewQueueTicket("SC02"); // Book one for SC02
-  // const q1 = getOldestWaitingQueue("SC01");
-  // if (q1) updateQueueStatus(q1.QueueID, "calling", "adminTestUserID");
-  // const q2 = getOldestWaitingQueue("SC02");
-  // if (q2) updateQueueStatus(q2.QueueID, "calling", "adminTestUserID");
+  // Example setup (run these manually or in a separate setup function if needed):
+  // Logger.log("Test Data Setup: Booking tickets...");
+  // bookNewQueueTicket("SC01"); 
+  // bookNewQueueTicket("SC01");
+  // bookNewQueueTicket("SC02");
+  // Logger.log("Test Data Setup: Calling a ticket for SC01...");
+  // const qToCall = getOldestWaitingQueue("SC01");
+  // if (qToCall) {
+  //   updateQueueStatus(qToCall.QueueID, "calling", "TestAdminUser"); // Ensure an admin user exists or use a placeholder
+  // } else {
+  //   Logger.log("Test Data Setup: No waiting queue found for SC01 to call.");
+  // }
 
+  Logger.log("Running testGetCurrentlyCallingAndWaiting...");
   const result = getCurrentlyCallingAndWaitingQueuesForAllChannels();
-  Logger.log(JSON.stringify(result, null, 2));
+  Logger.log("Test Result for getCurrentlyCallingAndWaitingQueuesForAllChannels: " + JSON.stringify(result, null, 2));
 }

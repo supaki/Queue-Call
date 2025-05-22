@@ -1,4 +1,35 @@
-<!-- Common styles -->
+<!-- 
+  Common CSS styles that might be shared across multiple HTML pages.
+  This file can be included in HTML templates using: <?!= include('frontend/styles.html'); ?>
+  
+  While Tailwind CSS is used for primary styling, this file can be used for:
+  1. Overriding specific Tailwind styles if absolutely necessary.
+  2. Defining global styles for elements not easily targeted by Tailwind utility classes (e.g., base body styles, link styles).
+  3. Custom component styles that are reused across pages.
+  4. Print-specific styles not covered in individual pages.
+-->
 <style>
-    /* Define common styles here */
+    /* Example: Define a global body font or background if not handled by Tailwind in each HTML body tag */
+    /* body {
+        font-family: 'Arial', sans-serif;
+        background-color: #f0f2f5; 
+    } */
+
+    /* Example: Custom class for a specific reusable component look */
+    /* .custom-card {
+        padding: 1rem;
+        border-radius: 0.5rem;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+    } */
+
+    /* Example: Global link styling (though Tailwind's text-blue-600 etc. is often preferred per-instance) */
+    /* a {
+        color: #3490dc; 
+        text-decoration: none;
+    }
+    a:hover {
+        text-decoration: underline;
+    } */
+
+    /* Add other common styles here as the project evolves. */
 </style>
