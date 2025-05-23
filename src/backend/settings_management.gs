@@ -351,3 +351,76 @@ function testSettingsManagementFunctions() {
   Logger.log("--- Settings Management Tests Finished ---");
   // PropertiesService.getUserProperties().deleteAllProperties(); // Clean up mock session
 }
+
+
+// --- Sound Settings Management Functions ---
+
+/**
+ * Retrieves all sound settings (SoundID, Description, FileID_or_URL) from the SoundLibrary.
+ * This function is intended for admin use only.
+ * @return {object} An object containing:
+ *                  `success` (boolean): True if successful, false otherwise.
+ *                  `sounds` (Array<object>, optional): An array of sound setting objects.
+ *                  `message` (string, optional): An error message if `success` is false.
+ */
+function getSoundSettingsClient() {
+  const currentUser = getCurrentUser_(); // from auth.gs
+  if (!currentUser || currentUser.role !== 'admin') {
+    Logger.log("getSoundSettingsClient: Unauthorized access by user: " + (currentUser ? currentUser.username : "Not logged in"));
+    return { success: false, message: "Unauthorized access. Admin role required." };
+  }
+
+  try {
+    const sounds = getAllSoundFiles(); // from database.gs
+    Logger.log("getSoundSettingsClient: Fetched " + sounds.length + " sound settings for admin '" + currentUser.username + "'.");
+    return { success: true, sounds: sounds };
+  } catch (e) {
+    Logger.log("getSoundSettingsClient: Error for admin '" + currentUser.username + "': " + e.message + " Stack: " + e.stack);
+    return { success: false, message: "An error occurred while fetching sound settings: " + e.message };
+  }
+}
+
+/**
+ * Updates the FileID_or_URL for a specific sound setting in the SoundLibrary.
+ * This function is intended for admin use only.
+ * @param {string} soundId The SoundID of the sound setting to update.
+ * @param {string} fileIdOrUrl The new Google Drive File ID or direct HTTPS URL for the sound file.
+ * @return {object} An object containing:
+ *                  `success` (boolean): True if successful, false otherwise.
+ *                  `message` (string): A message indicating the outcome of the operation.
+ */
+function updateSoundSettingClient(soundId, fileIdOrUrl) {
+  const currentUser = getCurrentUser_(); // from auth.gs
+  if (!currentUser || currentUser.role !== 'admin') {
+    Logger.log("updateSoundSettingClient: Unauthorized access by user: " + (currentUser ? currentUser.username : "Not logged in"));
+    return { success: false, message: "Unauthorized access. Admin role required." };
+  }
+
+  // Validate inputs
+  if (!soundId || typeof soundId !== 'string' || soundId.trim() === "") {
+    Logger.log("updateSoundSettingClient: Invalid soundId provided by admin '" + currentUser.username + "': '" + soundId + "'");
+    return { success: false, message: "Invalid SoundID provided. It cannot be empty." };
+  }
+  if (fileIdOrUrl === null || fileIdOrUrl === undefined || typeof fileIdOrUrl !== 'string') {
+     // Allow empty string for fileIdOrUrl to clear a setting, but not null/undefined if function expects string.
+     // For this case, an empty string might be a valid way to "unset" a sound.
+     // If it must be a valid URL/ID, more stringent validation is needed here or in database.gs.
+    Logger.log("updateSoundSettingClient: Invalid fileIdOrUrl provided by admin '" + currentUser.username + " for SoundID '" + soundId + "'. Must be a string.");
+    return { success: false, message: "File ID or URL must be a string. It can be empty to clear the sound." };
+  }
+
+
+  try {
+    const success = updateSoundFile(soundId, fileIdOrUrl.trim()); // from database.gs
+    if (success) {
+      Logger.log("updateSoundSettingClient: SoundID '" + soundId + "' updated with '" + fileIdOrUrl.trim() + "' by admin '" + currentUser.username + "'.");
+      return { success: true, message: "Sound setting for '" + soundId + "' updated successfully." };
+    } else {
+      Logger.log("updateSoundSettingClient: Failed to update SoundID '" + soundId + "' by admin '" + currentUser.username + "' (database.gs returned false - SoundID might not exist).");
+      return { success: false, message: "Failed to update sound setting for '" + soundId + "'. Ensure the SoundID is correct." };
+    }
+  } catch (e) {
+    Logger.log("updateSoundSettingClient: Error for admin '" + currentUser.username + "' while updating SoundID '" + soundId + "': " + e.message + " Stack: " + e.stack);
+    return { success: false, message: "An error occurred while updating the sound setting: " + e.message };
+  }
+}

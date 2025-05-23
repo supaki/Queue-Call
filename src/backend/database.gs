@@ -47,6 +47,15 @@ function getAppSettingsSheet() {
   return spreadsheet ? spreadsheet.getSheetByName(APP_SETTINGS_SHEET_NAME) : null;
 }
 
+/**
+ * Gets the 'SoundLibrary' sheet object from the active spreadsheet.
+ * @return {GoogleAppsScript.Spreadsheet.Sheet|null} The SoundLibrary sheet object, or null if not found.
+ */
+function getSoundLibrarySheet() {
+  const spreadsheet = SpreadsheetApp.openById(SPREADSHEET_ID);
+  return spreadsheet ? spreadsheet.getSheetByName("SoundLibrary") : null; // Assuming "SoundLibrary" is the sheet name
+}
+
 // --- Data Transformation Utilities ---
 
 /**
@@ -565,6 +574,20 @@ function updateSetting(name, value) {
     Logger.log("updateSetting: AppSettings sheet not found. Cannot update setting.");
     return false;
   }
+  // Ensure headers are present if sheet is empty (though initializeSystem should handle this)
+  if (sheet.getLastRow() === 0) {
+    sheet.appendRow(["SettingName", "SettingValue"]);
+    Logger.log("updateSetting: Added headers to empty AppSettings sheet.");
+  }
+  const data = sheet.getDataRange().getValues();
+  const headers = data[0];
+  const nameCol = headers.indexOf("SettingName");
+  const valueCol = headers.indexOf("SettingValue");
+
+  if (nameCol === -1 || valueCol === -1) {
+    Logger.log("updateSetting: 'SettingName' or 'SettingValue' column not found in AppSettings. Cannot update.");
+    return false;
+  }
   const data = sheet.getDataRange().getValues();
   const headers = data[0];
   const nameCol = headers.indexOf("SettingName");
@@ -736,25 +759,23 @@ function addTestData() {
     const currentSettings = getAppSettings(); // Fetches existing or default settings
 
     const defaultYoutubeId = "dQw4w9WgXcQ";
-    const defaultSoundUrl = "https://actions.google.com/sounds/v1/alarms/bell_timer.ogg";
+    const defaultSoundUrl = "https://actions.google.com/sounds/v1/alarms/bell_timer.ogg"; // Default notification sound
 
-    // Check and update youtubeVideoId if not the desired default or if it's missing
-    // (getAppSettings returns default if missing, so check against that)
+    // Update youtubeVideoId if not matching desired default or if it's missing
     if (currentSettings.youtubeVideoId !== defaultYoutubeId) {
-        updateSetting("youtubeVideoId", defaultYoutubeId); // updateSetting will add if not found
+        updateSetting("youtubeVideoId", defaultYoutubeId); 
         Logger.log("addTestData: Default youtubeVideoId set/updated in AppSettings.");
-    } else {
-        // Ensure the row exists even if currentSettings.youtubeVideoId matched default (e.g. if sheet was empty)
+    } else { // Ensure the row exists if currentSettings came from defaults (e.g. sheet was empty)
         const data = appSettingsSheet.getDataRange().getValues();
         const nameCol = data.length > 0 ? data[0].indexOf("SettingName") : -1;
         let found = false;
         if (nameCol !== -1) {
             for(let i=1; i<data.length; i++) { if(data[i][nameCol] === "youtubeVideoId") {found=true; break;} }
         }
-        if(!found) updateSetting("youtubeVideoId", defaultYoutubeId);
+        if(!found && nameCol !== -1) updateSetting("youtubeVideoId", defaultYoutubeId); // Add if not found & headers exist
     }
 
-    // Check and update defaultNotificationSoundUrl
+    // Update defaultNotificationSoundUrl
     if (currentSettings.defaultNotificationSoundUrl !== defaultSoundUrl) {
         updateSetting("defaultNotificationSoundUrl", defaultSoundUrl);
         Logger.log("addTestData: Default defaultNotificationSoundUrl set/updated in AppSettings.");
@@ -765,10 +786,120 @@ function addTestData() {
         if (nameCol !== -1) {
             for(let i=1; i<data.length; i++) { if(data[i][nameCol] === "defaultNotificationSoundUrl") {found=true; break;} }
         }
-        if(!found) updateSetting("defaultNotificationSoundUrl", defaultSoundUrl);
+        if(!found && nameCol !== -1) updateSetting("defaultNotificationSoundUrl", defaultSoundUrl);
     }
-    
   } else {
       Logger.log("addTestData: AppSettings sheet not found. Cannot add app settings data.");
   }
+
+  // SoundLibrary Sheet: Headers are handled by initializeSystem.
+  // initializeSystem will be responsible for populating default SoundIDs and descriptions.
+  // addTestData could ensure specific FileID_or_URL for some sounds if needed for testing,
+  // but for now, we'll let initializeSystem handle the structure and placeholder rows.
+  const soundLibSheet = ss.getSheetByName("SoundLibrary");
+  if (!soundLibSheet) {
+    Logger.log("addTestData: SoundLibrary sheet not found. It will be created by initializeSystem.");
+  }
+  }
+}
+
+// --- Sound Library Database Functions ---
+
+/**
+ * Gets a specific sound file's details from the 'SoundLibrary' sheet by its SoundID.
+ * @param {string} soundId The ID of the sound to find (e.g., "DIGIT_1", "CHANNEL_SC01_AUDIO").
+ * @return {object|null} The sound object (row converted to an object) if found, or null otherwise.
+ *                       Expected object: { SoundID: string, Description: string, FileID_or_URL: string }
+ */
+function getSoundFile(soundId) {
+  const sheet = getSoundLibrarySheet();
+  if (!sheet) {
+    Logger.log("getSoundFile: SoundLibrary sheet not found.");
+    return null;
+  }
+  const data = sheet.getDataRange().getValues();
+  if (data.length < 2) { // No data rows beyond headers
+    Logger.log("getSoundFile: SoundLibrary sheet is empty or has only headers.");
+    return null;
+  }
+  const headers = data[0];
+  const soundIdCol = headers.indexOf("SoundID");
+
+  if (soundIdCol === -1) {
+    Logger.log("getSoundFile: 'SoundID' column not found in SoundLibrary sheet.");
+    return null;
+  }
+
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][soundIdCol] === soundId) {
+      return rowToObject_(headers, data[i]);
+    }
+  }
+  Logger.log("getSoundFile: Sound with SoundID '" + soundId + "' not found.");
+  return null;
+}
+
+/**
+ * Gets all sound file entries from the 'SoundLibrary' sheet.
+ * @return {Array<object>} An array of sound objects. Each object represents a row from the sheet.
+ *                         Returns an empty array if the sheet is not found or has no data.
+ */
+function getAllSoundFiles() {
+  const sheet = getSoundLibrarySheet();
+  if (!sheet) {
+    Logger.log("getAllSoundFiles: SoundLibrary sheet not found.");
+    return [];
+  }
+  const data = sheet.getDataRange().getValues();
+  if (data.length < 2) { // No data rows beyond headers
+    Logger.log("getAllSoundFiles: SoundLibrary sheet is empty or has only headers.");
+    return [];
+  }
+  const headers = data[0];
+  const allSounds = [];
+  for (let i = 1; i < data.length; i++) {
+    if(data[i][0]) { // Basic check to ensure the row is not completely empty, assumes SoundID is first col
+       allSounds.push(rowToObject_(headers, data[i]));
+    }
+  }
+  Logger.log("getAllSoundFiles: Fetched " + allSounds.length + " sound entries.");
+  return allSounds;
+}
+
+/**
+ * Updates the 'FileID_or_URL' for a specific sound in the 'SoundLibrary' sheet.
+ * @param {string} soundId The 'SoundID' of the sound entry to update.
+ * @param {string} fileIdOrUrl The new Google Drive File ID or direct HTTPS URL for the sound file.
+ * @return {boolean} True if the update was successful, false otherwise (e.g., soundId not found).
+ */
+function updateSoundFile(soundId, fileIdOrUrl) {
+  const sheet = getSoundLibrarySheet();
+  if (!sheet) {
+    Logger.log("updateSoundFile: SoundLibrary sheet not found. Cannot update sound file.");
+    return false;
+  }
+  // Ensure headers are present if sheet is empty (though initializeSystem should handle this)
+  if (sheet.getLastRow() === 0) {
+    sheet.appendRow(["SoundID", "Description", "FileID_or_URL"]);
+    Logger.log("updateSoundFile: Added headers to empty SoundLibrary sheet.");
+  }
+  const data = sheet.getDataRange().getValues();
+  const headers = data[0];
+  const soundIdCol = headers.indexOf("SoundID");
+  const fileIdCol = headers.indexOf("FileID_or_URL");
+
+  if (soundIdCol === -1 || fileIdCol === -1) {
+    Logger.log("updateSoundFile: 'SoundID' or 'FileID_or_URL' column not found in SoundLibrary sheet. Cannot update.");
+    return false;
+  }
+
+  for (let i = 1; i < data.length; i++) {
+    if (data[i][soundIdCol] === soundId) {
+      sheet.getRange(i + 1, fileIdCol + 1).setValue(fileIdOrUrl);
+      Logger.log("updateSoundFile: SoundID '" + soundId + "' updated with FileID_or_URL '" + fileIdOrUrl + "'.");
+      return true;
+    }
+  }
+  Logger.log("updateSoundFile: SoundID '" + soundId + "' not found. No update performed.");
+  return false; // SoundID not found
 }

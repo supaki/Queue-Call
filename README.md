@@ -10,9 +10,10 @@ A web application for managing queues, built using Google Apps Script and Google
 *   Admin Panel for Queue Management (Call Next, Recall, Skip, Mark as Completed)
 *   Real-time Updates on Admin Panel and Display Screen (via polling)
 *   Public Queue Display Screen with YouTube Video Integration
-*   Sound Notification for New Calls on the Public Display Screen
+*   **Advanced Sound Announcements:** Plays sequenced audio for queue calls (e.g., 'Now calling' + 'Digit 0' + 'Digit 0' + 'Digit 1' + 'at Counter 1').
 *   Configurable Service Channels (Add, Edit, Enable/Disable via Settings page)
 *   Configurable YouTube Video ID for the Display Screen (via Settings page)
+*   Configurable Sound Files for Announcements (via Settings page and `SoundLibrary` sheet)
 *   System Initialization & Default Data Setup via a Custom Menu in Google Sheets
 
 ## ⚠️ CRITICAL SECURITY WARNING ⚠️
@@ -126,10 +127,48 @@ It is strongly recommended to research and implement a suitable password hashing
 ## Key Configuration (via Settings Page)
 
 *   **YouTube Video ID:** Admins can set this on the "Settings" page. This ID determines which YouTube video is played on the public display screen.
-*   **Notification Sound URL:**
-    *   **TODO:** The "Settings" page needs an input field for "Default Notification Sound URL".
-    *   The `display_screen.html` currently uses a hardcoded placeholder sound URL (`https://actions.google.com/sounds/v1/alarms/bell_timer.ogg`).
-    *   This should be updated so `display_screen.html` fetches this URL from `AppSettings` (via a backend function in `display.gs`) and uses it for notifications.
+*   **Default Notification Sound URL (Legacy):** The "Settings" page has an input for "Default Notification Sound URL". This was used by an older, simpler notification system on the display screen. While still present, the primary sound announcement now uses the "Advanced Sound Configuration" below. For the sequenced audio to work, the individual sound components must be configured in the `SoundLibrary` via the Settings page. If the sequenced audio fails or some components are missing, the `display_screen.html` might not produce sound or might have incomplete announcements.
+
+## Advanced Sound Configuration
+
+The system uses a sequence of audio files to announce queue numbers and service channels (e.g., "Now calling... A... 0... 2... 1... at... Counter 1"). This requires configuration by an administrator.
+
+**1. Overview:**
+*   Sound configurations are stored in a sheet named `SoundLibrary` within your Google Sheet.
+*   This sheet is managed via the **Settings** page in the web application, under the "Sound File Configuration" section.
+*   The `initializeSystem` function automatically populates the `SoundLibrary` sheet with the required `SoundID`s and their descriptions. Your task is to provide the actual sound file for each.
+
+**2. Configuring Sounds via Settings Page:**
+*   Navigate to the **Settings** page in the web application.
+*   Scroll to the **"Sound File Configuration"** section.
+*   You will see a table listing `SoundID`s (e.g., `INTRO_PHRASE`, `DIGIT_0`, `CHANNEL_SC01_AUDIO`), their `Description`, and an input field for `FileID or URL`.
+*   For each `SoundID`, you need to provide a valid Google Drive File ID or a direct HTTPS URL to an audio file.
+
+**3. Using Google Drive Files (Recommended for simplicity with Google Apps Script):**
+*   Upload your audio files (e.g., `.mp3`, `.wav`) to a folder in your Google Drive.
+*   For each audio file:
+    *   Right-click the file in Google Drive and select "Get link".
+    *   Ensure the sharing setting is changed from "Restricted" to **"Anyone with the link"** (role: Viewer). This is crucial for the script to access the files.
+    *   Copy the link. The link will look something like: `https://drive.google.com/file/d/FILE_ID/view?usp=sharing`.
+    *   Extract the `FILE_ID` from this link.
+    *   Paste only the `FILE_ID` into the corresponding "FileID or URL" field on the Settings page for the relevant `SoundID`.
+*   The system will automatically construct the correct playable URL for Google Drive files (using `https://drive.google.com/uc?export=download&id=FILE_ID`).
+
+**4. Using Direct HTTPS URLs:**
+*   If your audio files are hosted on a publicly accessible server (not requiring authentication), you can paste the full HTTPS URL (e.g., `https://example.com/sounds/digit_1.mp3`) directly into the "FileID or URL" field.
+*   Ensure these URLs are stable and the files are directly playable.
+
+**5. Required `SoundID`s for Full Announcement:**
+    The `initializeSystem` function creates these `SoundID`s. You need to provide the audio source for them:
+    *   `INTRO_PHRASE`: Played at the beginning (e.g., "Now calling," or "Now serving,").
+    *   `DIGIT_0` through `DIGIT_9`: Individual sounds for each digit. These are essential for announcing the numeric part of the queue number.
+    *   `AT_CHANNEL`: An optional phrase like "at" or "please proceed to," played before the channel name/sound.
+    *   `CHANNEL_{ServiceChannelID}_AUDIO`: A specific sound for announcing the service channel name (e.g., `CHANNEL_SC01_AUDIO` for "Counter 1", `CHANNEL_SC02_AUDIO` for "Information Desk"). These `SoundID`s are automatically generated in the `SoundLibrary` sheet by the `initializeSystem` function based on the Service Channels you have defined or that were created by `addTestData`. You need to provide the audio file for each of these.
+
+**6. Sound File Format & Quality:**
+*   Use web-playable audio formats like MP3, WAV, or OGG.
+*   Keep audio clips short, clear, and at a consistent volume level for the best user experience.
+*   Test the full announcement sequence after configuring to ensure it sounds correct.
 
 ## Troubleshooting
 
@@ -145,14 +184,13 @@ It is strongly recommended to research and implement a suitable password hashing
 ## Future Enhancements & Known Issues
 
 *   **Password Hashing (CRITICAL):** Implement robust password hashing immediately.
-*   **Dynamic YouTube/Sound URL on Display:** Complete the implementation for `display_screen.html` to fetch the YouTube Video ID and Notification Sound URL from `AppSettings` (via a backend call). The Settings page also needs an input for the sound URL.
-*   **Distinct Recall Sound:** The current sound notification on the display screen triggers for any new queue ID appearing in the "calling" list. A distinct sound or visual cue for "recalled" queues might require more specific logic.
-*   **ServiceChannelID Generation:** The `addServiceChannel` function in `database.gs` uses a simple random method for `ServiceChannelID`. For better uniqueness, consider changing this to use `Utilities.getUuid()`, similar to how `UserID` and `QueueID` are generated.
-*   **Error Handling & User Feedback:** Enhance global error handling and provide more specific, user-friendly feedback for various actions.
-*   **Concurrency:** For high-volume usage, review and potentially enhance the use of `LockService` to prevent race conditions in spreadsheet updates or `PropertiesService` access.
-*   **UI/UX Improvements:**
-    *   Add pagination for long lists (e.g., queue history in Admin Panel).
-    *   Improve visual feedback for background operations.
-    *   Consider a more sophisticated UI for the Edit Channel modal instead of a simple browser alert for validation.
-*   **Customizable Sounds:** Implement the originally planned `Sounds` sheet and Google Drive integration if custom notification sounds are desired.
-*   **Accessibility (a11y):** Review and improve web accessibility of the frontend pages.
+*   **Dynamic YouTube URL on Display:** The `display_screen.html` should ideally fetch the `youtubeVideoId` from `AppSettings` via a backend function call, rather than using a hardcoded default. This part of the "Key Configuration" is complete on the settings page but not fully utilized by the display screen yet.
+*   **Dynamic Default Notification Sound URL on Display:** Similar to the YouTube ID, the `defaultNotificationSoundUrl` from `AppSettings` (now configurable on the Settings page) should be fetched and used by `display_screen.html` for its *single* notification sound, if the advanced sequenced sound fails or as a simpler alternative. The advanced sound system uses the `SoundLibrary`.
+*   **Advanced Sound Sequence Playback:**
+    *   Currently, if multiple new queues are called simultaneously, only the sound sequence for the *first one detected* will be played to avoid overlapping audio. Subsequent new calls will only play if the previous sequence has finished.
+    *   There's no complex queuing or mixing of sound sequences.
+*   **ServiceChannelID Generation:** The `addServiceChannel` function in `database.gs` uses a simple method for `ServiceChannelID`. For better uniqueness, consider changing this to use `Utilities.getUuid()`.
+*   **Error Handling & User Feedback:** Can be further enhanced, especially for audio playback issues on the display screen.
+*   **Concurrency:** For high-volume usage, `LockService` use should be reviewed.
+*   **UI/UX Improvements:** Pagination for long lists, more sophisticated modal validations, etc.
+*   **Accessibility (a11y):** Review and improve web accessibility.

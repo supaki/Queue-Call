@@ -83,17 +83,41 @@
                     <label for="youtubeVideoId" class="block text-sm font-medium text-gray-700">YouTube Video ID (for Display Screen)</label>
                     <input type="text" id="youtubeVideoId" name="youtubeVideoId" class="mt-1 block w-full md:w-1/2 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
                 </div>
-                <!-- TODO: Add input for defaultNotificationSoundUrl in a future enhancement -->
-                <!-- <div class="mb-4">
-                    <label for="defaultSoundUrl" class="block text-sm font-medium text-gray-700">Default Notification Sound URL</label>
-                    <input type="url" id="defaultSoundUrl" name="defaultSoundUrl" class="mt-1 block w-full md:w-1/2 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
-                </div> -->
+                <div class="mb-4">
+                    <label for="defaultNotificationSoundUrl" class="block text-sm font-medium text-gray-700">Default Notification Sound URL (Display Screen)</label>
+                    <input type="url" id="defaultNotificationSoundUrl" name="defaultNotificationSoundUrl" class="mt-1 block w-full md:w-1/2 px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm">
+                </div>
                 <button id="saveAppSettingsButton" type="submit" class="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded">
                     Save App Settings
                 </button>
             </form>
         </section>
         <!-- End Application Settings Section -->
+
+        <!-- Sound Configuration Section -->
+        <section class="mt-8 p-6 bg-white rounded-lg shadow">
+            <h2 class="text-lg font-semibold text-gray-700 mb-4">Sound File Configuration</h2>
+            <div id="soundSettingsMessageArea" class="mb-4 text-sm text-center p-3 rounded-md">
+                <!-- Messages specific to sound settings will appear here -->
+            </div>
+            <div class="overflow-x-auto">
+                <table id="soundSettingsTable" class="min-w-full divide-y divide-gray-200">
+                    <thead class="bg-gray-50">
+                        <tr>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Sound ID</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
+                            <th scope="col" class="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-2/5">File ID or URL</th>
+                            <th scope="col" class="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Actions</th>
+                        </tr>
+                    </thead>
+                    <tbody class="bg-white divide-y divide-gray-200">
+                         <tr><td colspan="4" class="text-center p-4 text-gray-500">Loading sound settings...</td></tr>
+                    </tbody>
+                </table>
+            </div>
+        </section>
+        <!-- End Sound Configuration Section -->
+
     </div>
     <!-- End Main Settings Container -->
 
@@ -161,7 +185,12 @@
         // Application Settings Elements
         const appSettingsForm = document.getElementById('appSettingsForm');
         const youtubeVideoIdInput = document.getElementById('youtubeVideoId');
-        // const defaultSoundUrlInput = document.getElementById('defaultSoundUrl'); // Example for future
+        const defaultNotificationSoundUrlInput = document.getElementById('defaultNotificationSoundUrl');
+
+        // Sound Settings Elements
+        const soundSettingsTable = document.getElementById('soundSettingsTable').getElementsByTagName('tbody')[0];
+        const soundSettingsMessageArea = document.getElementById('soundSettingsMessageArea');
+
 
         // --- Utility Functions ---
 
@@ -180,6 +209,23 @@
                 settingsMessageArea.className = 'mb-4 text-sm text-center p-3 rounded-md bg-blue-100 text-blue-700';
             }
         }
+        
+        /**
+         * Displays a message in the sound settings specific message area.
+         * @param {string} message The message text.
+         * @param {boolean} [isError=false] True if it's an error message for styling.
+         */
+        function displaySoundSettingsMessage(message, isError = false) {
+            soundSettingsMessageArea.textContent = message;
+            if (isError) {
+                soundSettingsMessageArea.className = 'mb-4 text-sm text-center p-3 rounded-md bg-red-100 text-red-700';
+            } else if (!message) {
+                soundSettingsMessageArea.className = 'mb-4 text-sm text-center p-3 rounded-md';
+            } else { 
+                soundSettingsMessageArea.className = 'mb-4 text-sm text-center p-3 rounded-md bg-green-100 text-green-700';
+            }
+        }
+
 
         // --- Initialization and Session Management ---
 
@@ -213,15 +259,15 @@
         }
 
         /**
-         * Loads both application settings and the list of service channels.
+         * Loads application settings, service channels list, and sound settings.
          */
         function loadInitialSettings() {
-            // Load Application Settings (e.g., YouTube ID)
+            // Load Application Settings (e.g., YouTube ID, Default Sound URL)
             google.script.run
                 .withSuccessHandler(response => {
                     if (response.success && response.settings) {
                         youtubeVideoIdInput.value = response.settings.youtubeVideoId || '';
-                        // defaultSoundUrlInput.value = response.settings.defaultNotificationSoundUrl || ''; // For future
+                        defaultNotificationSoundUrlInput.value = response.settings.defaultNotificationSoundUrl || '';
                     } else {
                         displaySettingsMessage(response.message || "Failed to load application settings.", true);
                     }
@@ -231,6 +277,15 @@
 
             // Load Service Channels list
             loadServiceChannelsList();
+
+            // Load Sound Settings
+            google.script.run
+                .withSuccessHandler(renderSoundSettingsTable)
+                .withFailureHandler(error => {
+                    onFailure(error); // Use general failure for network/script errors
+                    displaySoundSettingsMessage("Error loading sound configurations.", true);
+                })
+                .getSoundSettingsClient(); // Server-side function from settings_management.gs
         }
         
         // --- Service Channel Management ---
@@ -244,10 +299,10 @@
                     if (response.success && response.channels) {
                         renderServiceChannelsTable(response.channels);
                     } else {
-                        displaySettingsMessage(response.message || "Failed to load service channels.", true);
+                        displaySettingsMessage(response.message || "Failed to load service channels.", true); // Use main message area
                     }
                 })
-                .withFailureHandler(onFailure)
+                .withFailureHandler(onFailure) // Uses main onFailure
                 .getServiceChannelsClient(); // Server-side function from settings_management.gs
         }
 
@@ -384,7 +439,7 @@
         function handleSaveAppSettings(event) {
             event.preventDefault(); // Prevent default form submission
             const youtubeId = youtubeVideoIdInput.value.trim();
-            // const soundUrl = defaultSoundUrlInput.value.trim(); // Example for future
+            const soundUrl = defaultNotificationSoundUrlInput.value.trim();
             
             displaySettingsMessage("Saving application settings...", false);
             
@@ -392,14 +447,13 @@
             google.script.run
                 .withSuccessHandler(processUpdateSettingResponse) // Generic response handler
                 .withFailureHandler(onFailure)
-                .updateSettingClient('youtubeVideoId', youtubeId); // Server-side function
+                .updateSettingClient('youtubeVideoId', youtubeId);
             
-            // TODO: If other settings are added (e.g., defaultNotificationSoundUrl),
-            // call updateSettingClient for each. Consider batching updates if many settings.
-            // google.script.run
-            //     .withSuccessHandler(processUpdateSettingResponse)
-            //     .withFailureHandler(onFailure)
-            //     .updateSettingClient('defaultNotificationSoundUrl', soundUrl);
+            // Call server-side function to update Default Notification Sound URL
+            google.script.run
+                .withSuccessHandler(processUpdateSettingResponse)
+                .withFailureHandler(onFailure)
+                .updateSettingClient('defaultNotificationSoundUrl', soundUrl);
         }
 
         /**
@@ -407,10 +461,113 @@
          * @param {object} response Expected: { success: boolean, message: string }
          */
         function processUpdateSettingResponse(response) {
-            displaySettingsMessage(response.message, !response.success);
-            // Optionally, can reload specific settings if needed, but often a message is sufficient.
-            // if(response.success) { loadInitialSettings(); } // Could reload all settings
+            // This function might be called multiple times if saving multiple settings.
+            // The message will reflect the last setting saved.
+            displaySettingsMessage(response.message, !response.success); 
+            // Optionally, reload all settings if one save was successful to ensure UI consistency.
+            // if(response.success) { loadInitialSettings(); }
         }
+
+        // --- Sound Settings Management ---
+
+        /**
+         * Renders the sound settings data into the HTML table.
+         * @param {object} response Expected: { success: boolean, sounds?: Array<object>, message?: string }
+         */
+        function renderSoundSettingsTable(response) {
+            if (!response.success || !response.sounds) {
+                displaySoundSettingsMessage(response.message || "Failed to load sound settings.", true);
+                soundSettingsTable.innerHTML = '<tr><td colspan="4" class="text-center p-4 text-red-500">Error loading sound settings.</td></tr>';
+                return;
+            }
+            
+            soundSettingsTable.innerHTML = ''; // Clear existing table rows
+            if (response.sounds.length === 0) {
+                const row = soundSettingsTable.insertRow();
+                const cell = row.insertCell();
+                cell.colSpan = 4;
+                cell.className = 'px-6 py-4 whitespace-nowrap text-sm text-gray-500 text-center';
+                cell.textContent = 'No sound configurations found. System might need initialization or re-initialization.';
+                return;
+            }
+
+            response.sounds.forEach(sound => {
+                const row = soundSettingsTable.insertRow();
+                row.insertCell().textContent = sound.SoundID;
+                row.insertCell().textContent = sound.Description;
+                
+                const urlCell = row.insertCell();
+                const urlInput = document.createElement('input');
+                urlInput.type = 'text';
+                urlInput.id = `sound_url_${sound.SoundID}`; // Unique ID for each input
+                urlInput.className = 'border p-1 w-full text-sm rounded-md shadow-sm focus:ring-indigo-500 focus:border-indigo-500';
+                urlInput.value = sound.FileID_or_URL || '';
+                urlCell.appendChild(urlInput);
+
+                const actionsCell = row.insertCell();
+                const saveButton = document.createElement('button');
+                saveButton.textContent = 'Save';
+                saveButton.className = 'saveSoundButton bg-green-500 hover:bg-green-700 text-white text-xs font-bold py-1 px-2 rounded';
+                saveButton.dataset.soundid = sound.SoundID; // Store SoundID in data attribute
+                saveButton.addEventListener('click', handleSaveSoundSetting);
+                actionsCell.appendChild(saveButton);
+            });
+            displaySoundSettingsMessage("Sound settings loaded successfully.", false);
+        }
+
+        /**
+         * Handles saving an individual sound setting when its "Save" button is clicked.
+         * @param {Event} event The click event from a "Save" button.
+         */
+        function handleSaveSoundSetting(event) {
+            const soundId = event.target.dataset.soundid;
+            const fileIdOrUrlInput = document.getElementById(`sound_url_${soundId}`);
+            const fileIdOrUrl = fileIdOrUrlInput.value.trim();
+
+            displaySoundSettingsMessage(`Saving setting for ${soundId}...`, false);
+            event.target.disabled = true; // Disable button during save to prevent multiple clicks
+            event.target.textContent = 'Saving...';
+
+            google.script.run
+                .withSuccessHandler(response => processSaveSoundSettingResponse(response, soundId, event.target))
+                .withFailureHandler(error => {
+                    onFailure(error); // Use general failure for network/script errors
+                    displaySoundSettingsMessage(`Error saving ${soundId}: ${error.message}`, true);
+                    event.target.disabled = false; // Re-enable button on failure
+                    event.target.textContent = 'Save';
+                })
+                .updateSoundSettingClient(soundId, fileIdOrUrl); // Server-side function
+        }
+        
+        /**
+         * Processes the response from updating a sound setting.
+         * Updates UI feedback for the specific save button.
+         * @param {object} response Expected: { success: boolean, message: string }
+         * @param {string} soundId The SoundID that was being updated.
+         * @param {HTMLButtonElement} button The save button that was clicked.
+         */
+        function processSaveSoundSettingResponse(response, soundId, button) {
+            displaySoundSettingsMessage(response.message, !response.success); // Show message in sound settings area
+            button.disabled = false; // Re-enable button
+            button.textContent = 'Save';
+            if (response.success) {
+                // Optional: Visual feedback like briefly changing button color to confirm save
+                button.classList.remove('bg-green-500');
+                button.classList.add('bg-green-700'); // Indicate success
+                setTimeout(() => { 
+                    button.classList.remove('bg-green-700'); 
+                    button.classList.add('bg-green-500'); // Revert to original color
+                }, 2000);
+            } else {
+                 button.classList.remove('bg-green-500');
+                 button.classList.add('bg-red-500'); // Indicate error
+                 setTimeout(() => { 
+                    button.classList.remove('bg-red-500'); 
+                    button.classList.add('bg-green-500'); // Revert or set to a neutral state
+                }, 2000);
+            }
+        }
+
         
         // --- Navigation and Error Handling ---
 
@@ -421,7 +578,7 @@
         function redirectToLogin(error) {
             let message = "Redirecting to login...";
             if (error && error.message) message = error.message + " " + message;
-            displaySettingsMessage(message, true);
+            displaySettingsMessage(message, true); // Use main message area for this
             google.script.run
                 .withSuccessHandler(url => { window.top.location.href = url; })
                 .withFailureHandler(mf => displaySettingsMessage("Critical: Could not get login page URL.", true))
@@ -433,7 +590,7 @@
          * @param {string} pageName The name of the page (e.g., 'dashboard').
          */
         function navigateTo(pageName) {
-            displaySettingsMessage(`Navigating to ${pageName}...`, false);
+            displaySettingsMessage(`Navigating to ${pageName}...`, false); // Use main message area
             // If there were any polling intervals on this page, clear them before navigating.
             // Example: if (activePollingInterval) clearInterval(activePollingInterval); 
             google.script.run.storeCurrentPage(pageName);
@@ -445,6 +602,7 @@
 
         /**
          * Generic failure handler for `google.script.run` calls.
+         * Displays error in the main settings message area.
          * @param {Error} error The error object.
          */
         function onFailure(error) {

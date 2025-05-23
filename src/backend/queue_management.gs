@@ -126,7 +126,9 @@ function callNextQueue(serviceChannelId) {
     }
     
     Logger.log("callNextQueue: Successfully called QueueID: '" + updatedQueue.QueueID + "' by Admin: " + currentUser.username);
-    return { success: true, calledQueue: updatedQueue };
+    // Generate sound sequence
+    const soundSequence = generateSoundSequence(updatedQueue.QueueNumber, updatedQueue.ServiceChannelID); // from utils.gs
+    return { success: true, calledQueue: updatedQueue, soundUrlSequence: soundSequence };
 
   } catch (e) {
     Logger.log("callNextQueue: Error for channel '" + serviceChannelId + "' by admin " + currentUser.username + ": " + e.message + " Stack: " + e.stack);
@@ -173,9 +175,11 @@ function recallQueue(queueId) {
       Logger.log("recallQueue: Failed to update queue status to 'calling' for QueueID: '" + queueId + "'. Admin: " + currentUser.username);
       return { success: false, message: "Failed to recall queue. Please try again." };
     }
-
+    
+    // Generate sound sequence
+    const soundSequence = generateSoundSequence(updatedQueue.QueueNumber, updatedQueue.ServiceChannelID); // from utils.gs
     Logger.log("recallQueue: Successfully recalled QueueID: '" + updatedQueue.QueueID + "' by Admin: " + currentUser.username);
-    return { success: true, recalledQueue: updatedQueue };
+    return { success: true, recalledQueue: updatedQueue, soundUrlSequence: soundSequence };
 
   } catch (e) {
     Logger.log("recallQueue: Error for QueueID '" + queueId + "' by admin " + currentUser.username + ": " + e.message + " Stack: " + e.stack);

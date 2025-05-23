@@ -94,8 +94,13 @@
         const callingArea = document.getElementById('callingArea');
         const waitingListArea = document.getElementById('waitingListArea');
         const youtubePlayerDiv = document.getElementById('youtubePlayer');
-        let audioPlayer = null;                     // Audio object for notification sound
-        let firstDataLoadComplete = false;          // Flag to prevent sound on initial page load for already calling queues
+
+        // --- Audio Management Global Variables ---
+        let soundSequenceQueue = []; // Holds URLs for the current announcement sequence
+        let currentAudioPlayer = null; // The single <audio> element for playback
+        let isPlayingSequence = false; // Flag to indicate if a sound sequence is currently playing
+        
+        let firstDataLoadComplete = false; // Flag to manage initial sound playing (for detecting *new* calls)
 
         // --- Initialization ---
 
@@ -112,19 +117,20 @@
 
         /**
          * Initializes the Audio object for playing notification sounds.
-         * The sound URL is currently hardcoded but can be made configurable.
+         * Sets up event listeners for 'ended' (to play next sound) and 'error'.
          */
         function initializeAudioPlayer() {
-            if (!audioPlayer) {
-                audioPlayer = new Audio();
-                audioPlayer.preload = "auto"; // Preload the audio file for faster playback
-                // TODO: Make this sound URL configurable via AppSettings in a future enhancement.
-                audioPlayer.src = "https://actions.google.com/sounds/v1/alarms/bell_timer.ogg"; 
+            if (!currentAudioPlayer) {
+                currentAudioPlayer = new Audio();
+                currentAudioPlayer.preload = "auto"; // Preload for faster playback
                 
-                audioPlayer.onerror = function() {
-                    console.error("Error loading the notification sound file.");
-                    // Optionally, display a message to the user or admin if sound fails to load.
-                };
+                // Event listener for when a sound in the sequence finishes playing
+                currentAudioPlayer.addEventListener('ended', playNextSoundInSequence);
+                
+                // Event listener for errors during audio playback
+                currentAudioPlayer.addEventListener('error', handleAudioError);
+                
+                console.log("Audio player initialized.");
             }
         }
 
@@ -146,43 +152,60 @@
          *                          Expected: { success: boolean, data?: { calling: Array<object>, waiting: Array<object> }, message?: string }
          */
         function processDisplayData(response) {
-            if (response && response.success) {
+            if (response && response.success && response.data) {
                 const currentCallingQueuesData = response.data.calling || [];
                 const currentWaitingQueuesData = response.data.waiting || [];
 
-                // --- Sound Notification Logic ---
-                const currentCallingQueueIds = new Set(currentCallingQueuesData.map(q => q.queueId));
-                let playSoundForNewCall = false;
+                // --- Sound Notification Logic for Sequenced Audio ---
+                const currentCallingMap = new Map(currentCallingQueuesData.map(q => [q.queueId, q]));
+                const newlyCalledQueues = [];
 
                 if (firstDataLoadComplete) {
-                    // Check for any new queue IDs in the current "calling" list compared to the previous list.
-                    currentCallingQueueIds.forEach(id => {
-                        if (!previouslyCallingQueueIds.has(id)) {
-                            playSoundForNewCall = true; // A new queue is now calling
+                    currentCallingMap.forEach((queue, queueId) => {
+                        if (!previouslyCallingQueueIds.has(queueId)) {
+                            newlyCalledQueues.push(queue); // This queue is newly called
                         }
                     });
                 } else {
-                    // This is the first successful data load.
-                    // Populate `previouslyCallingQueueIds` without playing sounds for initially "calling" queues.
-                    firstDataLoadComplete = true;
+                    firstDataLoadComplete = true; // First load, don't play sounds for existing calls
                 }
                 
-                // If a new call is detected (and it's not the initial load), play the notification sound.
-                if (playSoundForNewCall && audioPlayer) {
-                    audioPlayer.play().catch(e => console.error("Audio playback error:", e));
+                // If new calls are detected and no sequence is currently playing, start the first new one.
+                if (newlyCalledQueues.length > 0 && !isPlayingSequence) {
+                    let queueToAnnounce = newlyCalledQueues[0]; // Announce the first new one
+                    
+                    // The backend now provides 'soundUrlSequence' directly with the queue object
+                    if (queueToAnnounce.soundUrlSequence && Array.isArray(queueToAnnounce.soundUrlSequence)) {
+                        console.log("Preparing to play sound sequence for queue:", queueToAnnounce.queueNumber, queueToAnnounce.soundUrlSequence);
+                        
+                        // Filter out any potentially empty/null URLs and transform GDrive IDs
+                        soundSequenceQueue = queueToAnnounce.soundUrlSequence.map(urlOrId => {
+                            if (urlOrId && urlOrId.length > 20 && !urlOrId.startsWith('http')) { // Basic check for Drive ID
+                                return `https://drive.google.com/uc?export=download&id=${urlOrId}`;
+                            }
+                            return urlOrId; 
+                        }).filter(url => url && url.trim() !== ""); 
+
+                        if (soundSequenceQueue.length > 0) {
+                            isPlayingSequence = true;
+                            playNextSoundInSequence();
+                        } else {
+                             console.log("Sound sequence for " + queueToAnnounce.queueNumber + " was empty after processing URLs.");
+                        }
+                    } else {
+                        console.log("No soundUrlSequence found or it's not an array for newly called queue:", queueToAnnounce.queueNumber);
+                    }
                 }
                 
-                // Update the set of previously calling queue IDs for the next comparison.
-                previouslyCallingQueueIds = currentCallingQueueIds; 
+                previouslyCallingQueueIds = new Set(currentCallingMap.keys()); // Update for next comparison
                 // --- End Sound Notification Logic ---
 
-                // Update the UI with the fetched data.
+                // Update UI with the fetched data.
                 updateCallingDisplay(currentCallingQueuesData);
                 updateWaitingListDisplay(currentWaitingQueuesData);
 
             } else {
                 console.error("Failed to fetch display data or server returned an error:", response.message || "No message provided.");
-                // Optionally, display a subtle error message on the screen for admins/monitoring.
             }
         }
 
@@ -193,7 +216,7 @@
          * @param {Array<object>} callingQueues An array of queue objects currently in the "calling" state.
          */
         function updateCallingDisplay(callingQueues) {
-            callingArea.innerHTML = ''; // Clear previous content
+            callingArea.innerHTML = ''; 
 
             if (!callingQueues || callingQueues.length === 0) {
                 const p = document.createElement('p');
@@ -203,14 +226,10 @@
                 return;
             }
             
-            // Sort by timestampCalled to ensure newest are potentially highlighted or displayed first if multiple are calling.
-            // Backend already sorts, but client-side sort can be a failsafe or for specific client needs.
             callingQueues.sort((a, b) => new Date(b.timestampCalled) - new Date(a.timestampCalled));
 
             callingQueues.forEach(queue => {
                 const item = document.createElement('div');
-                // Add a pulse animation for a short duration for visual indication.
-                // This could be tied more directly to *new* items if needed, but for now, applies to all displayed.
                 item.className = 'calling-item animate-pulse'; 
                 
                 const queueNumberEl = document.createElement('div');
@@ -225,7 +244,6 @@
                 item.appendChild(channelNameEl);
                 callingArea.appendChild(item);
 
-                // Remove pulse animation after a few seconds to avoid constant pulsing.
                 setTimeout(() => item.classList.remove('animate-pulse'), 3000); 
             });
         }
@@ -235,7 +253,7 @@
          * @param {Array<object>} waitingQueues An array of queue objects currently in the "waiting" state.
          */
         function updateWaitingListDisplay(waitingQueues) {
-            waitingListArea.innerHTML = ''; // Clear previous content
+            waitingListArea.innerHTML = ''; 
             if (!waitingQueues || waitingQueues.length === 0) {
                 const p = document.createElement('p');
                 p.className = 'text-center text-gray-500 text-xl col-span-full';
@@ -247,7 +265,6 @@
             waitingQueues.forEach(queue => {
                 const item = document.createElement('div');
                 item.className = 'waiting-item';
-                // Display queue number and a shortened version of the channel name.
                 item.textContent = `${queue.queueNumber} (${queue.channelName.substring(0,3)}...)`; 
                 waitingListArea.appendChild(item);
             });
@@ -264,35 +281,76 @@
                 youtubePlayerDiv.innerHTML = '<div class="w-full h-full bg-black flex items-center justify-center text-gray-500">No YouTube video configured.</div>';
                 return;
             }
-            // YouTube embed URL with parameters for autoplay, mute, loop, and minimal UI.
             const embedUrl = `https://www.youtube.com/embed/${youtubeVideoId}?autoplay=1&mute=1&loop=1&playlist=${youtubeVideoId}&controls=0&modestbranding=1&showinfo=0&rel=0`;
             
             const iframe = document.createElement('iframe');
             iframe.setAttribute('src', embedUrl);
             iframe.setAttribute('frameborder', '0');
-            iframe.setAttribute('allow', 'autoplay; encrypted-media'); // Permissions for autoplay
+            iframe.setAttribute('allow', 'autoplay; encrypted-media'); 
             iframe.setAttribute('allowfullscreen', 'true');
             
-            youtubePlayerDiv.innerHTML = ''; // Clear any placeholder content
+            youtubePlayerDiv.innerHTML = ''; 
             youtubePlayerDiv.appendChild(iframe);
         }
+
+        // --- Sound Playback Engine ---
+
+        /**
+         * Plays the next sound in the `soundSequenceQueue`.
+         * This function is called when the current sound finishes (due to 'ended' event listener)
+         * or when a new sequence is initiated.
+         */
+        function playNextSoundInSequence() {
+            if (soundSequenceQueue.length > 0) {
+                let nextSoundUrl = soundSequenceQueue.shift(); // Get and remove the first URL from the queue
+                
+                // URL construction for Google Drive files is now handled in processDisplayData before adding to queue
+                if (nextSoundUrl && currentAudioPlayer) {
+                    console.log("Playing sound:", nextSoundUrl);
+                    currentAudioPlayer.src = nextSoundUrl;
+                    currentAudioPlayer.play().catch(e => { 
+                        console.error("Error playing sound:", nextSoundUrl, e);
+                        handleAudioError(e); // Pass the error object
+                    });
+                } else if (nextSoundUrl === "" || !nextSoundUrl) { // If URL is empty, skip and play next
+                    console.log("Skipping empty sound URL in sequence.");
+                    playNextSoundInSequence(); 
+                }
+            } else {
+                // No more sounds in the queue, sequence finished.
+                isPlayingSequence = false;
+                console.log("Sound sequence finished.");
+            }
+        }
+
+        /**
+         * Handles errors during audio playback.
+         * Logs the error and stops the current sound sequence.
+         * @param {Event|Error} error The error event or error object from the audio player.
+         */
+        function handleAudioError(error) {
+            console.error("Audio playback error detected:", error);
+            if (currentAudioPlayer && currentAudioPlayer.error) {
+                console.error("Audio player error code:", currentAudioPlayer.error.code);
+                console.error("Audio player error message:", currentAudioPlayer.error.message);
+            }
+            isPlayingSequence = false; // Stop trying to play this sequence
+            soundSequenceQueue = [];   // Clear the problematic queue
+        }
+
 
         // --- Error Handling and Event Listeners ---
 
         /**
          * Generic failure handler for `google.script.run` calls.
-         * Logs the error to the console. For a public display, avoid showing disruptive errors on screen.
          * @param {Error} error The error object from the failed call.
          */
         function onFailure(error) {
             console.error('Google Apps Script Call Error:', error);
-            // Optionally, display a very subtle, non-intrusive error indicator if necessary.
-            // Example: if (callingArea.innerHTML === '') callingArea.innerHTML = "<p class='text-red-400 text-center text-xs'>Data error. Retrying...</p>";
         }
 
         // Event Listeners
-        window.addEventListener('load', initializeDisplay); // Start initialization when the page loads.
-        // Cleanup polling when the page is closed or navigated away from.
+        window.addEventListener('load', initializeDisplay); 
         window.addEventListener('beforeunload', () => {
             if (activeDisplayPollingInterval) {
                 clearInterval(activeDisplayPollingInterval);
@@ -300,7 +358,5 @@
         });
 
     </script>
-    <!-- Note: The audio element could be statically defined here, but dynamic creation in JS is also fine. -->
-    <!-- <audio id="notificationSound" preload="auto" src="your-sound-url.mp3"></audio> -->
 </body>
 </html>
